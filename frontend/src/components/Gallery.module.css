@@ -1,0 +1,99 @@
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding: 0;
+}
+
+@media (min-width: 480px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (min-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+.modalContent {
+  background: var(--mantine-color-dark-7);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+[data-mantine-color-scheme="light"] .modalContent {
+  background: var(--mantine-color-white);
+}
+
+.modalBody {
+  padding: 0;
+}
+
+.modalInner {
+  position: relative;
+}
+
+.topActions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+}
+
+.actionBtn {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  color: white;
+}
+
+.actionBtn:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.imageContainer {
+  cursor: pointer;
+  background: var(--mantine-color-dark-9);
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+[data-mantine-color-scheme="light"] .imageContainer {
+  background: var(--mantine-color-gray-1);
+}
+
+.modalImage {
+  max-height: 50vh;
+  object-fit: contain;
+  transition: transform 0.3s ease;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .modalImage {
+    max-height: 60vh;
+  }
+}
+
+.details {
+  background: var(--mantine-color-dark-6);
+  border-top: 1px solid var(--mantine-color-dark-4);
+}
+
+[data-mantine-color-scheme="light"] .details {
+  background: var(--mantine-color-gray-0);
+  border-top: 1px solid var(--mantine-color-gray-3);
+}

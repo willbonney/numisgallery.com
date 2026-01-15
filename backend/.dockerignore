@@ -1,0 +1,13 @@
+# Don't include these in Docker builds
+node_modules/
+npm-debug.log
+.env
+.env.*
+scraper/
+*.md
+.git/
+.github/
+
+
+
+

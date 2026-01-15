@@ -1,0 +1,46 @@
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mantine/core": "^8.3.9",
+    "@mantine/dates": "^8.3.9",
+    "@mantine/form": "^8.3.9",
+    "@mantine/hooks": "^8.3.9",
+    "@mantine/notifications": "^8.3.9",
+    "@stripe/stripe-js": "^8.6.1",
+    "@tabler/icons-react": "^3.35.0",
+    "country-flag-icons": "^1.6.4",
+    "dayjs": "^1.11.19",
+    "flag-icons": "^7.5.0",
+    "jspdf": "^3.0.4",
+    "pocketbase": "^0.26.5",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-image-crop": "^11.0.10",
+    "react-router-dom": "^7.10.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "prettier": "^3.1.1",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.4",
+    "vite": "^7.2.4"
+  }
+}

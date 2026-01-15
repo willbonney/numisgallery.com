@@ -1,0 +1,10 @@
+# PocketBase executable
+pocketbase
+pocketbase.exe
+
+# PocketBase data directory
+pb_data/
+
+# Logs
+*.log
+

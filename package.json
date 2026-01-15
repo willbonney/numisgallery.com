@@ -1,0 +1,32 @@
+{
+  "name": "mercury",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n \"frontend,scraper,pocketbase\" -c \"cyan,yellow,green\" \"npm run dev:frontend\" \"npm run dev:scraper\" \"npm run dev:pocketbase\""
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:scraper": "cd backend/scraper && npm run dev",
+    "dev:pocketbase": "node scripts/start-container.js pocketbase 8090 ghcr.io/muchobien/pocketbase:latest \"serve --migrationsDir=/pb/pb_migrations\"",
+    "dev:hermes": "echo 'Hermes private API stub ready'"
+
+    "install:all": "npm install && cd frontend && npm install && cd ../backend/scraper && npm install && cd ../backend && npm install",
+    "setup": "npm run install:all && npm run setup:user-settings",
+    "setup:user-settings": "node backend/setup-user-settings.cjs",
+    "docker:setup": "docker pull ghcr.io/muchobien/pocketbase:latest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:check-services": "node e2e/check-services.js",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "concurrently": "^8.2.2",
+    "husky": "^9.1.7"
+  },
+  "dependencies": {
+    "node-fetch": "^2.7.0",
+    "playwright": "^1.57.0",
+    "pocketbase": "^0.26.5"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "format_on_save": "on",
+  "formatter": "prettier",
+  "languages": {
+    "TypeScript": {
+      "formatter": "prettier",
+      "format_on_save": "on"
+    },
+    "TSX": {
+      "formatter": "prettier",
+      "format_on_save": "on"
+    },
+    "JavaScript": {
+      "formatter": "prettier",
+      "format_on_save": "on"
+    },
+    "JSX": {
+      "formatter": "prettier",
+      "format_on_save": "on"
+    }
+  },
+  "prettier": {
+    "semi": true,
+    "trailing_comma": "es5",
+    "single_quote": false,
+    "print_width": 80,
+    "tab_width": 2,
+    "use_tabs": false,
+    "arrow_parens": "always"
+  }
+}

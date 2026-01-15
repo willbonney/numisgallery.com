@@ -1,0 +1,27 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Running E2E tests before push..."
+echo ""
+
+# Check if services are running using Node.js script (cross-platform)
+node e2e/check-services.js
+
+if [ $? -ne 0 ]; then
+  exit 1
+fi
+
+echo ""
+echo "🧪 Running E2E tests..."
+echo ""
+
+npm run test:e2e || {
+  echo ""
+  echo "❌ E2E tests failed. Check the output above for details."
+  echo "📊 HTML report available at: test-results/playwright-report/index.html"
+  exit 1
+}
+
+echo ""
+echo "✅ E2E tests passed!"
+

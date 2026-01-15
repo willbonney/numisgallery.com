@@ -1,0 +1,51 @@
+.dropzone {
+  border: 2px dashed var(--mantine-color-gray-4);
+  border-radius: var(--mantine-radius-md);
+  padding: var(--mantine-spacing-md);
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-mantine-color-scheme="dark"] .dropzone {
+  background-color: var(--mantine-color-dark-7);
+}
+
+[data-mantine-color-scheme="light"] .dropzone {
+  background-color: var(--mantine-color-gray-0);
+}
+
+.dropzone:hover:not(.disabled) {
+  border-color: var(--mantine-color-sage-6);
+}
+
+[data-mantine-color-scheme="dark"] .dropzone:hover:not(.disabled) {
+  background-color: var(--mantine-color-dark-6);
+  border-color: var(--mantine-color-sage-5);
+}
+
+[data-mantine-color-scheme="light"] .dropzone:hover:not(.disabled) {
+  background-color: var(--mantine-color-gray-1);
+  border-color: var(--mantine-color-sage-6);
+}
+
+.dropzone.dragging {
+  border-color: var(--mantine-color-sage-6);
+  background-color: var(--mantine-color-sage-1);
+  border-style: solid;
+}
+
+[data-mantine-color-scheme="dark"] .dropzone.dragging {
+  border-color: var(--mantine-color-sage-5);
+  background-color: var(--mantine-color-sage-9);
+}
+
+.dropzone.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+

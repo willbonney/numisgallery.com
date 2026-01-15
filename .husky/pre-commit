@@ -1,0 +1,2 @@
+# Pre-commit hook - add any checks you want to run before commit
+# For now, we only run tests on pre-push to avoid slowing down commits
