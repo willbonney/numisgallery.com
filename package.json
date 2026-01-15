@@ -3,13 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n \"frontend,scraper,pocketbase\" -c \"cyan,yellow,green\" \"npm run dev:frontend\" \"npm run dev:scraper\" \"npm run dev:pocketbase\""
+    "dev": "concurrently -n \"frontend,hermes,pocketbase\" -c \"cyan,yellow,green\" \"npm run dev:frontend\" \"npm run dev:hermes\" \"npm run dev:pocketbase\"",
     "dev:frontend": "cd frontend && npm run dev",
-    "dev:scraper": "cd backend/scraper && npm run dev",
-    "dev:pocketbase": "node scripts/start-container.js pocketbase 8090 ghcr.io/muchobien/pocketbase:latest \"serve --migrationsDir=/pb/pb_migrations\"",
-    "dev:hermes": "echo 'Hermes private API stub ready'"
-
-    "install:all": "npm install && cd frontend && npm install && cd ../backend/scraper && npm install && cd ../backend && npm install",
+    "dev:pocketbase": "node scripts/start-container.js pocketbase 8090 ghcr.io/muchobien/pocketbase:latest \"serve --http=0.0.0.0:8090 --migrationsDir=/pb/pb_migrations\"",
+    "dev:hermes": "cd ../hermes && docker compose up -d",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
     "setup": "npm run install:all && npm run setup:user-settings",
     "setup:user-settings": "node backend/setup-user-settings.cjs",
     "docker:setup": "docker pull ghcr.io/muchobien/pocketbase:latest",
