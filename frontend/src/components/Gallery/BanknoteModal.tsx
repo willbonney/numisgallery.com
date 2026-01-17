@@ -426,7 +426,7 @@ export function BanknoteModal({
                 {banknote.pmgCert || "—"}
               </Text>
             </div>
-            {banknote.purchasePrice > 0 && (
+            {banknote.purchasePrice > 0 && isOwner && (
               <div>
                 <Text size="xs" c="dimmed">
                   Purchased
