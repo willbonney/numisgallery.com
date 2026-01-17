@@ -1,5 +1,4 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
+
 
 echo "🔍 Running E2E tests before push..."
 echo ""
@@ -24,4 +23,3 @@ npm run test:e2e || {
 
 echo ""
 echo "✅ E2E tests passed!"
-
