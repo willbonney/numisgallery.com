@@ -1,5 +1,6 @@
 import { useMantineColorScheme } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import type { ClientResponseError } from "pocketbase";
 import { useCallback, useEffect, useState } from "react";
 import pb from "../lib/pocketbase";
 
@@ -32,6 +33,20 @@ export function useSettings() {
   const [loading, setLoading] = useState(true);
   const { setColorScheme } = useMantineColorScheme();
 
+  // Apply theme to Mantine
+  const applyTheme = useCallback(
+    (theme: Theme) => {
+      if (theme === "auto") {
+        const prefersDark = window.matchMedia(
+          "(prefers-color-scheme: dark)"
+        ).matches;
+        setColorScheme(prefersDark ? "dark" : "light");
+      } else {
+        setColorScheme(theme);
+      }
+    },
+    [setColorScheme]
+  );
   // Load settings from PocketBase
   const loadSettings = useCallback(async () => {
     const userId = pb.authStore.record?.id;
@@ -82,11 +97,17 @@ export function useSettings() {
         // Clear localStorage preference since it's now in the database
         localStorage.removeItem("themePreference");
       }
-    } catch (error: any) {
-      // Handle 403 Forbidden errors gracefully (collection may not be accessible)
-      // This can happen in development/testing environments
-      if (error?.status === 403) {
-        console.debug("Settings collection not accessible (403 Forbidden)");
+    } catch (error: unknown) {
+      // Handle 403 Forbidden and 400 Bad Request errors gracefully
+      // 403: collection may not be accessible
+      // 400: collection may not exist (not created via migrations yet)
+      if (
+        (error as ClientResponseError)?.status === 403 ||
+        (error as ClientResponseError)?.status === 400
+      ) {
+        console.debug(
+          "Settings collection not accessible or not found (403/400)"
+        );
       } else {
         console.error("Failed to load settings:", error);
       }
@@ -95,19 +116,7 @@ export function useSettings() {
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  // Apply theme to Mantine
-  const applyTheme = (theme: Theme) => {
-    if (theme === "auto") {
-      const prefersDark = window.matchMedia(
-        "(prefers-color-scheme: dark)"
-      ).matches;
-      setColorScheme(prefersDark ? "dark" : "light");
-    } else {
-      setColorScheme(theme);
-    }
-  };
+  }, [applyTheme, setColorScheme]);
 
   // Update theme preference
   const updateTheme = useCallback(
@@ -128,10 +137,15 @@ export function useSettings() {
           message: `Theme changed to ${newTheme}`,
           color: "green",
         });
-      } catch (error: any) {
-        // Handle 403 Forbidden errors gracefully
-        if (error?.status === 403) {
-          console.debug("Settings collection not accessible (403 Forbidden)");
+      } catch (error: unknown) {
+        // Handle 403 Forbidden and 400 Bad Request errors gracefully
+        if (
+          (error as ClientResponseError)?.status === 403 ||
+          (error as ClientResponseError)?.status === 400
+        ) {
+          console.debug(
+            "Settings collection not accessible or not found (403/400)"
+          );
           applyTheme(newTheme as Theme);
           return;
         }
@@ -143,7 +157,7 @@ export function useSettings() {
         });
       }
     },
-    [settings, setColorScheme]
+    [settings, applyTheme]
   );
 
   // Load settings on mount
@@ -178,10 +192,15 @@ export function useSettings() {
           .collection("user_settings")
           .update<UserSettings>(settings.id, updates);
         setSettings(updatedSettings);
-      } catch (error: any) {
-        // Handle 403 Forbidden errors gracefully (collection may not be accessible)
-        if (error?.status === 403) {
-          console.debug("Settings collection not accessible (403 Forbidden)");
+      } catch (error: unknown) {
+        // Handle 403 Forbidden and 400 Bad Request errors gracefully
+        if (
+          (error as ClientResponseError)?.status === 403 ||
+          (error as ClientResponseError)?.status === 400
+        ) {
+          console.debug(
+            "Settings collection not accessible or not found (403/400)"
+          );
           return;
         }
         console.error("Failed to update gallery settings:", error);
