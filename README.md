@@ -2,7 +2,11 @@
 
 NumisGallery is a modern web application for collectors to manage, organize, and showcase their **banknote collections**. Built with a full-stack architecture, it supports user authentication, AI-powered scraping and data extraction from PMG (Paper Money Guaranty) images, and a responsive frontend.
 
-## Key Features
+<p align="center">
+<img src="architecture.png"/>
+</p>
+  
+## Features
 
 - **PMG Integration**: Enter certification number and grade to fetch high-res obverse/reverse images via an external scraping API.
 - **AI Data Extraction**: Automatically extracts key details from images using advanced vision models (InternVL):
@@ -19,32 +23,19 @@ NumisGallery is a modern web application for collectors to manage, organize, and
 - **Gallery View**: Display personal collection with images and metadata.
 - **Subscriptions**: Framework for premium features.
 
-### **Development & Testing**
-
-- **E2E Tests**: Comprehensive Playwright tests for full banknote flow (signup → fetch → extract → save → verify DB).
-- **Pre-push Hooks**: Husky enforces E2E tests and service checks (PocketBase, Hermes scraper).
-- **Dockerized Services**:
-  - PocketBase (DB + auth)
-  - Scraper
-  - Bot detection bypass
-
-## Tech Stack
-
-- **Frontend**: React + Vite + Mantine + TypeScript + PocketBase JS SDK
-- **Backend**: PocketBase (self-hosted SQLite/NoSQL)
-- **External APIs**: Hermes (private scraping proxy)
-- **Testing**: Playwright (E2E), Husky (git hooks)
-- **Dev Tools**: Docker Compose, concurrently for multi-service dev
-
 ## 🚀 Quick Start
 
+### Prod Testing
+1. Navigate to https://numisgallery.com
+2. Login with test@test.com/testtest
+3. Click on "Your Collection", then the "Add Banknote" button in the top right
+4. Enter Cert# 2175561-051 and Grade 68
+5. Click "Fetch PMG Images" and when that is done, click "Extract Data"
+6. Click "Add Banknote" in the bottom right to save
+7. Navigate to "Community" and observe your baknote among many others!
+
+### Local Development0
 1. `npm install` (root) + `cd frontend && npm install`
 2. Start services: `npm run dev` (PocketBase + Hermes + Frontend)
 3. Visit `http://localhost:5173` (Vite dev server)
 4. Signup and add a banknote (e.g., PMG cert `1991248-001`, grade `66`).
-
-## 🔗 External Dependencies
-
-**Hermes** (private repo): scraping proxy
-**Public Repo**: https://github.com/willbonney/numisgallery.com  
-**License**: Unlicensed
