@@ -2,6 +2,7 @@
   "name": "mercury",
   "version": "1.0.0",
   "private": true,
+  "license": "UNLICENSED",
   "scripts": {
     "dev": "concurrently -n \"frontend,hermes,pocketbase\" -c \"cyan,yellow,green\" \"npm run dev:frontend\" \"npm run dev:hermes\" \"npm run dev:pocketbase\"",
     "dev:frontend": "cd frontend && npm run dev",
