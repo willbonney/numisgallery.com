@@ -2,7 +2,11 @@
 
 NumisGallery is a modern web application for collectors to manage, organize, and showcase their **banknote collections**. Built with a full-stack architecture, it supports user authentication, AI-powered scraping and data extraction from PMG (Paper Money Guaranty) images, and a responsive frontend.
 
-## Key Features
+<p align="center">
+<img src="architecture.png"/>
+</p>
+  
+## Features
 
 - **PMG Integration**: Enter certification number and grade to fetch high-res obverse/reverse images via an external scraping API.
 - **AI Data Extraction**: Automatically extracts key details from images using advanced vision models (InternVL):
@@ -18,23 +22,6 @@ NumisGallery is a modern web application for collectors to manage, organize, and
 
 - **Gallery View**: Display personal collection with images and metadata.
 - **Subscriptions**: Framework for premium features.
-
-### **Development & Testing**
-
-- **E2E Tests**: Comprehensive Playwright tests for full banknote flow (signup → fetch → extract → save → verify DB).
-- **Pre-push Hooks**: Husky enforces E2E tests and service checks (PocketBase, Hermes scraper).
-- **Dockerized Services**:
-  - PocketBase (DB + auth)
-  - Scraper
-  - Bot detection bypass
-
-## Tech Stack
-
-- **Frontend**: React + Vite + Mantine + TypeScript + PocketBase JS SDK
-- **Backend**: PocketBase (self-hosted SQLite/NoSQL)
-- **External APIs**: Hermes (private scraping proxy)
-- **Testing**: Playwright (E2E), Husky (git hooks)
-- **Dev Tools**: Docker Compose, concurrently for multi-service dev
 
 ## 🚀 Quick Start
 
