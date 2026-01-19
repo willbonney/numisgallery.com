@@ -65,7 +65,7 @@ export function useSettings() {
       const records = await pb
         .collection("user_settings")
         .getFullList<UserSettings>({
-          filter: `userId = "${userId}"`,
+          filter: `userId="${userId}"`,
         });
 
       if (records.length > 0) {
