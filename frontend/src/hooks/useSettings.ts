@@ -1,7 +1,7 @@
 import { useMantineColorScheme } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { ClientResponseError } from "pocketbase";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import pb from "../lib/pocketbase";
 
 type Theme = "light" | "dark" | "auto";
@@ -33,19 +33,23 @@ export function useSettings() {
   const [loading, setLoading] = useState(true);
   const { setColorScheme } = useMantineColorScheme();
 
-  // Apply theme to Mantine
+  // Store the latest setColorScheme in a ref to avoid dependency issues
+  const setColorSchemeRef = useRef(setColorScheme);
+  setColorSchemeRef.current = setColorScheme;
+
+  // Apply theme to Mantine (uses ref instead of depending on setColorScheme)
   const applyTheme = useCallback(
     (theme: Theme) => {
       if (theme === "auto") {
         const prefersDark = window.matchMedia(
           "(prefers-color-scheme: dark)"
         ).matches;
-        setColorScheme(prefersDark ? "dark" : "light");
+        setColorSchemeRef.current(prefersDark ? "dark" : "light");
       } else {
-        setColorScheme(theme);
+        setColorSchemeRef.current(theme);
       }
     },
-    [setColorScheme]
+    [] // No dependencies - this function is now stable
   );
   // Load settings from PocketBase
   const loadSettings = useCallback(async () => {
@@ -54,7 +58,7 @@ export function useSettings() {
       // For unauthenticated users, check localStorage for theme preference
       const savedTheme = localStorage.getItem("themePreference");
       if (savedTheme && (savedTheme === "light" || savedTheme === "dark")) {
-        setColorScheme(savedTheme);
+        setColorSchemeRef.current(savedTheme);
       }
       setLoading(false);
       return;
@@ -116,7 +120,7 @@ export function useSettings() {
     } finally {
       setLoading(false);
     }
-  }, [applyTheme, setColorScheme]);
+  }, [applyTheme]); // Only depends on stable applyTheme
 
   // Update theme preference
   const updateTheme = useCallback(

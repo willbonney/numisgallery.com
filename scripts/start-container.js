@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+const { execSync } = require("child_process");
+const fs = require("fs");
+const path = require("path");
 
 /**
  * Safely start a Docker container
@@ -16,7 +16,7 @@ function startContainer(containerName, port, image, command = null) {
     try {
       const runningContainers = execSync(
         `docker ps -q -f name=${containerName}`,
-        { encoding: 'utf8' }
+        { encoding: "utf8" },
       ).trim();
 
       if (runningContainers) {
@@ -29,14 +29,13 @@ function startContainer(containerName, port, image, command = null) {
 
     // Check if container exists but is stopped
     try {
-      const allContainers = execSync(
-        `docker ps -aq -f name=${containerName}`,
-        { encoding: 'utf8' }
-      ).trim();
+      const allContainers = execSync(`docker ps -aq -f name=${containerName}`, {
+        encoding: "utf8",
+      }).trim();
 
       if (allContainers) {
         console.log(`↻ Starting existing container '${containerName}'...`);
-        execSync(`docker start ${containerName}`, { stdio: 'inherit' });
+        execSync(`docker start ${containerName}`, { stdio: "inherit" });
         console.log(`✓ Container '${containerName}' started`);
         return;
       }
@@ -50,9 +49,15 @@ function startContainer(containerName, port, image, command = null) {
     let dockerRunCmd = `docker run -d -p ${port}:${port} --name ${containerName}`;
 
     // Add volume mounts if needed
-    if (containerName === 'pocketbase') {
-      const pbDataPath = path.join(__dirname, '..', 'backend', 'pb_data');
-      const pbMigrationsPath = path.join(__dirname, '..', 'backend', 'pb_migrations');
+    if (containerName === "pocketbase") {
+      const pbDataPath = path.join(__dirname, "..", "backend", "pb_data");
+      const pbMigrationsPath = path.join(
+        __dirname,
+        "..",
+        "backend",
+        "pb_migrations",
+      );
+      const pbHooksPath = path.join(__dirname, "..", "backend", "pb_hooks");
 
       // Ensure directories exist
       if (!fs.existsSync(pbDataPath)) {
@@ -61,12 +66,14 @@ function startContainer(containerName, port, image, command = null) {
       if (!fs.existsSync(pbMigrationsPath)) {
         fs.mkdirSync(pbMigrationsPath, { recursive: true });
       }
+      if (!fs.existsSync(pbHooksPath)) {
+        fs.mkdirSync(pbHooksPath, { recursive: true });
+      }
 
       dockerRunCmd += ` -v ${pbDataPath}:/pb_data`;
       dockerRunCmd += ` -v ${pbMigrationsPath}:/pb/pb_migrations`;
+      dockerRunCmd += ` -v ${pbHooksPath}:/pb/pb_hooks`;
     }
-
-
 
     dockerRunCmd += ` ${image}`;
 
@@ -75,11 +82,13 @@ function startContainer(containerName, port, image, command = null) {
       dockerRunCmd += ` ${command}`;
     }
 
-    execSync(dockerRunCmd, { stdio: 'inherit' });
+    execSync(dockerRunCmd, { stdio: "inherit" });
     console.log(`✓ Container '${containerName}' created and started`);
-
   } catch (error) {
-    console.error(`✗ Error managing container '${containerName}':`, error.message);
+    console.error(
+      `✗ Error managing container '${containerName}':`,
+      error.message,
+    );
     process.exit(1);
   }
 }
@@ -91,7 +100,9 @@ const image = process.argv[4];
 const command = process.argv[5];
 
 if (!containerName || !port || !image) {
-  console.error('Usage: node start-container.js <containerName> <port> <image> [command]');
+  console.error(
+    "Usage: node start-container.js <containerName> <port> <image> [command]",
+  );
   process.exit(1);
 }
 

@@ -12,9 +12,9 @@ import {
   Text,
   Title,
   useComputedColorScheme,
-  useMantineColorScheme
-} from '@mantine/core'
-import { useDisclosure } from '@mantine/hooks'
+  useMantineColorScheme,
+} from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import {
   IconBrandDiscord,
   IconCreditCard,
@@ -23,48 +23,65 @@ import {
   IconMoon,
   IconSettings,
   IconSun,
-} from '@tabler/icons-react'
-import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { LoadingOverlay } from './components/LoadingOverlay'
-import { LoginScreen } from './components/LoginScreen'
-import { Navigation } from './components/Navigation'
-import { PrivacyPolicy } from './components/PrivacyPolicy'
-import { TermsAndConditions } from './components/TermsAndConditions'
-import { useAuth } from './hooks/useAuth'
-import { useSettings } from './hooks/useSettings'
-import { useSubscription } from './hooks/useSubscription'
-import { CollectionPage } from './pages/CollectionPage'
-import { CommunityPage } from './pages/CommunityPage'
-import { HomePage } from './pages/HomePage'
-import { SettingsPage } from './pages/SettingsPage'
-import { SubscriptionPage } from './pages/SubscriptionPage'
-import { UserCollectionPage } from './pages/UserCollectionPage'
-import { getImageUrl } from './utils/fileHelpers'
+} from "@tabler/icons-react";
+import { useCallback, useRef } from "react";
+import {
+  Link,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+import { LoadingOverlay } from "./components/LoadingOverlay";
+import { LoginScreen } from "./components/LoginScreen";
+import { Navigation } from "./components/Navigation";
+import { PrivacyPolicy } from "./components/PrivacyPolicy";
+import { TermsAndConditions } from "./components/TermsAndConditions";
+import { useAuth } from "./hooks/useAuth";
+import { useSettings } from "./hooks/useSettings";
+import { useSubscription } from "./hooks/useSubscription";
+import { CollectionPage } from "./pages/CollectionPage";
+import { CommunityPage } from "./pages/CommunityPage";
+import { HomePage } from "./pages/HomePage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { SubscriptionPage } from "./pages/SubscriptionPage";
+import { UserCollectionPage } from "./pages/UserCollectionPage";
+import { getImageUrl } from "./utils/fileHelpers";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, logout } = useAuth()
-  const { subscription } = useSubscription()
-  const { setColorScheme } = useMantineColorScheme()
-  const computedColorScheme = useComputedColorScheme('dark')
-  const { updateTheme } = useSettings()
-  const [drawerOpened, { toggle: toggleDrawer, close: closeDrawer }] = useDisclosure(false)
-  const navigate = useNavigate()
+  const { user, logout } = useAuth();
+  const { subscription } = useSubscription();
+  const { setColorScheme } = useMantineColorScheme();
+  const computedColorScheme = useComputedColorScheme("dark");
+  const { updateTheme } = useSettings();
+  const [drawerOpened, { toggle: toggleDrawer, close: closeDrawer }] =
+    useDisclosure(false);
+  const navigate = useNavigate();
 
-  const toggleColorScheme = () => {
-    const newScheme = computedColorScheme === 'dark' ? 'light' : 'dark'
-    setColorScheme(newScheme)
-    // Also update the saved theme preference
+  // Store the latest updateTheme and setColorScheme in refs
+  const updateThemeRef = useRef(updateTheme);
+  const setColorSchemeRef = useRef(setColorScheme);
+  updateThemeRef.current = updateTheme;
+  setColorSchemeRef.current = setColorScheme;
+
+  const toggleColorScheme = useCallback(() => {
+    const newScheme = computedColorScheme === "dark" ? "light" : "dark";
+
+    // Update the saved theme preference first (this also calls setColorScheme internally)
     if (user) {
-      updateTheme(newScheme).catch(err => {
-        console.error('Failed to save theme preference:', err)
+      updateThemeRef.current(newScheme).catch((err) => {
+        console.error("Failed to save theme preference:", err);
         // Fallback: save to localStorage if database update fails
-        localStorage.setItem('themePreference', newScheme)
-      })
+        localStorage.setItem("themePreference", newScheme);
+        setColorSchemeRef.current(newScheme);
+      });
     } else {
       // For unauthenticated users, save to localStorage
-      localStorage.setItem('themePreference', newScheme)
+      localStorage.setItem("themePreference", newScheme);
+      setColorSchemeRef.current(newScheme);
     }
-  }
+  }, [computedColorScheme, user]);
 
   return (
     <AppShell header={{ height: 60 }} padding="md">
@@ -78,15 +95,37 @@ function AppLayout({ children }: { children: React.ReactNode }) {
                 hiddenFrom="sm"
                 size="sm"
               />
-              <Anchor component={Link} to="/" underline="never" style={{ flexShrink: 0 }}>
+              <Anchor
+                component={Link}
+                to="/"
+                underline="never"
+                style={{ flexShrink: 0 }}
+              >
                 <Group gap="xs" align="center" wrap="nowrap">
-                  <img src="/logo.svg" alt="NumisGallery" height={40} width={40} style={{ display: 'block', flexShrink: 0 }} />
-                  <Title order={2} style={{ fontSize: 'clamp(1rem, 2.5vw, 1.5rem)', whiteSpace: 'nowrap' }}>NumisGallery</Title>
+                  <img
+                    src="/logo.svg"
+                    alt="NumisGallery"
+                    height={40}
+                    width={40}
+                    style={{ display: "block", flexShrink: 0 }}
+                  />
+                  <Title
+                    order={2}
+                    style={{
+                      fontSize: "clamp(1rem, 2.5vw, 1.5rem)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    NumisGallery
+                  </Title>
                 </Group>
               </Anchor>
             </Group>
 
-            <Group style={{ flex: 1, justifyContent: 'center', minWidth: 0 }} visibleFrom="sm">
+            <Group
+              style={{ flex: 1, justifyContent: "center", minWidth: 0 }}
+              visibleFrom="sm"
+            >
               <Navigation />
             </Group>
 
@@ -96,34 +135,35 @@ function AppLayout({ children }: { children: React.ReactNode }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Join our Discord community"
-                style={{ 
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--mantine-color-sage-6)',
-                  transition: 'color 0.2s ease',
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--mantine-color-sage-6)",
+                  transition: "color 0.2s ease",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = 'var(--mantine-color-gray-4)';
+                  e.currentTarget.style.color = "var(--mantine-color-gray-4)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.color = 'var(--mantine-color-sage-6)';
+                  e.currentTarget.style.color = "var(--mantine-color-sage-6)";
                 }}
               >
-                <IconBrandDiscord 
-                  size={24} 
-                  strokeWidth={1.5}
-                />
+                <IconBrandDiscord size={24} strokeWidth={1.5} />
               </Anchor>
 
               <ActionIcon
                 variant="transparent"
                 onClick={toggleColorScheme}
-                title={computedColorScheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                title={
+                  computedColorScheme === "dark"
+                    ? "Switch to light mode"
+                    : "Switch to dark mode"
+                }
                 size="lg"
-                style={{ border: 'none', background: 'transparent' }}
+                style={{ border: "none", background: "transparent" }}
               >
-                {computedColorScheme === 'dark' ? (
+                {computedColorScheme === "dark" ? (
                   <IconSun size={18} color="var(--mantine-color-yellow-6)" />
                 ) : (
                   <IconMoon size={18} color="#000" />
@@ -133,31 +173,41 @@ function AppLayout({ children }: { children: React.ReactNode }) {
               {user ? (
                 <Menu shadow="md" width={200}>
                   <Menu.Target>
-                    <ActionIcon variant="default" size="lg" radius="xl" style={{ position: 'relative', overflow: 'visible' }}>
-                      <Avatar 
-                        size="md" 
+                    <ActionIcon
+                      variant="default"
+                      size="lg"
+                      radius="xl"
+                      style={{ position: "relative", overflow: "visible" }}
+                    >
+                      <Avatar
+                        size="md"
                         color="sage"
-                        src={user.avatar && user.id && user.collectionName 
-                          ? getImageUrl(
-                              { id: user.id, collectionId: user.collectionId || '', collectionName: user.collectionName },
-                              user.avatar
-                            )
-                          : undefined
+                        src={
+                          user.avatar && user.id && user.collectionName
+                            ? getImageUrl(
+                                {
+                                  id: user.id,
+                                  collectionId: user.collectionId || "",
+                                  collectionName: user.collectionName,
+                                },
+                                user.avatar
+                              )
+                            : undefined
                         }
                       >
                         {user.email.charAt(0).toUpperCase()}
                       </Avatar>
-                      {subscription?.tier === 'pro' && (
-                        <IconCrown 
-                          size={20} 
-                          color="var(--mantine-color-yellow-6)" 
+                      {subscription?.tier === "pro" && (
+                        <IconCrown
+                          size={20}
+                          color="var(--mantine-color-yellow-6)"
                           fill="var(--mantine-color-yellow-6)"
                           style={{
-                            position: 'absolute',
-                            top: '-10px',
-                            right: '-10px',
+                            position: "absolute",
+                            top: "-10px",
+                            right: "-10px",
                             zIndex: 1000,
-                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))',
+                            filter: "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))",
                             strokeWidth: 2.5,
                           }}
                         />
@@ -167,15 +217,15 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
                   <Menu.Dropdown>
                     <Menu.Label>{user.email}</Menu.Label>
-                    <Menu.Item 
+                    <Menu.Item
                       leftSection={<IconSettings size={14} />}
                       component={Link}
                       to="/settings"
                     >
                       Settings
                     </Menu.Item>
-                    {import.meta.env.VITE_SHOW_SUBSCRIPTIONS === 'true' && (
-                      <Menu.Item 
+                    {import.meta.env.VITE_SHOW_SUBSCRIPTIONS === "true" && (
+                      <Menu.Item
                         leftSection={<IconCreditCard size={14} />}
                         component={Link}
                         to="/subscription"
@@ -188,8 +238,8 @@ function AppLayout({ children }: { children: React.ReactNode }) {
                       color="red"
                       leftSection={<IconLogout size={14} />}
                       onClick={() => {
-                        logout()
-                        navigate('/login')
+                        logout();
+                        navigate("/login");
                       }}
                     >
                       Logout
@@ -223,53 +273,67 @@ function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </Drawer>
 
-      <AppShell.Main>
-        {children}
-      </AppShell.Main>
+      <AppShell.Main>{children}</AppShell.Main>
     </AppShell>
-  )
+  );
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth()
-  const location = useLocation()
+  const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
-      <Container style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <Container
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+        }}
+      >
         <Text>Loading...</Text>
       </Container>
-    )
+    );
   }
 
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  return <>{children}</>
+  return <>{children}</>;
 }
 
 function LoginRoute() {
-  const { user } = useAuth()
-  const location = useLocation()
-  
+  const { user } = useAuth();
+  const location = useLocation();
+
   if (user) {
-    const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/your-banknotes'
-    return <Navigate to={from} replace />
+    const from =
+      (location.state as { from?: { pathname?: string } })?.from?.pathname ||
+      "/your-banknotes";
+    return <Navigate to={from} replace />;
   }
-  
-  return <LoginScreen />
+
+  return <LoginScreen />;
 }
 
 function App() {
-  const { loading } = useAuth()
+  const { loading } = useAuth();
 
   if (loading) {
     return (
-      <Container style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <Container
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+        }}
+      >
         <Text>Loading...</Text>
       </Container>
-    )
+    );
   }
 
   return (
@@ -309,15 +373,23 @@ function App() {
                 }
               />
               <Route path="/pricing" element={<SubscriptionPage />} />
-              <Route path="/terms-and-conditions" element={<TermsAndConditions opened={true} onClose={() => {}} />} />
-              <Route path="/privacy-policy" element={<PrivacyPolicy opened={true} onClose={() => {}} />} />
+              <Route
+                path="/terms-and-conditions"
+                element={
+                  <TermsAndConditions opened={true} onClose={() => {}} />
+                }
+              />
+              <Route
+                path="/privacy-policy"
+                element={<PrivacyPolicy opened={true} onClose={() => {}} />}
+              />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </AppLayout>
         }
       />
     </Routes>
-  )
+  );
 }
 
-export default App
+export default App;
