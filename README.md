@@ -6,7 +6,7 @@ NumisGallery is a modern web application for collectors to manage, organize, and
 <img src="architecture1.png"/>
 </p>
   
-## Features
+### Features
 
 - **PMG Integration**: Enter certification number and grade to fetch high-res obverse/reverse images via an external scraping API.
 - **AI Data Extraction**: Automatically extracts key details from images using advanced vision models (InternVL):
