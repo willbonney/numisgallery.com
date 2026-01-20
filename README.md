@@ -23,18 +23,20 @@ NumisGallery is a modern web application for collectors to manage, organize, and
 - **Gallery View**: Display personal collection with images and metadata.
 - **Subscriptions**: Framework for premium features.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prod Testing
+
 1. Navigate to https://numisgallery.com
-2. Login with test@test.com/testtest
+2. Login with `test@test.com` and `testtest`
 3. Click on "Your Collection", then the "Add Banknote" button in the top right
 4. Enter Cert# 2175561-051 and Grade 68
 5. Click "Fetch PMG Images" and when that is done, click "Extract Data"
 6. Click "Add Banknote" in the bottom right to save
 7. Navigate to "Community" and observe your baknote among many others!
 
-### Local Development0
+### Local Development
+
 1. `npm install` (root) + `cd frontend && npm install`
 2. Start services: `npm run dev` (PocketBase + Hermes + Frontend)
 3. Visit `http://localhost:5173` (Vite dev server)
