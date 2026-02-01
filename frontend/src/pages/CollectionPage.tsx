@@ -392,6 +392,7 @@ export function CollectionPage({ isOwner = true }: CollectionPageProps) {
                     setView("form");
                   }}
                   disabled={!canAddBanknote}
+                  aria-label="Add Banknote"
                 >
                   <IconPlus size={30} />
                 </ActionIcon>
