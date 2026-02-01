@@ -132,6 +132,7 @@ temp/
 *.backup
 *.bak
 *.old
+backups/
 
 # Lock files (uncomment if you want to ignore them)
 # package-lock.json

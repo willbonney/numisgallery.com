@@ -1,6 +1,8 @@
 require("dotenv").config();
 const express = require("express");
 const fetch = require("node-fetch");
+const rateLimit = require("express-rate-limit");
+const Stripe = require("stripe");
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -11,10 +13,23 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
+// Initialize Stripe (we only need it for webhook signature verification)
+const stripe = new Stripe(
+  process.env.STRIPE_SECRET_KEY || "dummy_key_for_webhook_verification",
+);
+
 if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
   console.error("❌ Error: ADMIN_EMAIL and ADMIN_PASSWORD must be set");
 }
 
+if (!STRIPE_WEBHOOK_SECRET) {
+  console.error(
+    "❌ Error: STRIPE_WEBHOOK_SECRET must be set for secure webhook verification",
+  );
+}
+
+// IMPORTANT: Use raw body for Stripe webhook signature verification
+// This must be before any other body parsers
 app.use(express.raw({ type: "application/json" }));
 
 // Get admin auth token
@@ -59,6 +74,10 @@ function mapPriceToTier(priceId) {
   return "free";
 }
 
+function isValidPocketBaseId(id) {
+  return /^[a-z0-9]{15}$/i.test(id);
+}
+
 // Reset usage period when subscription renews
 async function resetUsagePeriod(token, stripeData) {
   try {
@@ -66,6 +85,10 @@ async function resetUsagePeriod(token, stripeData) {
 
     if (!userId) {
       return;
+    }
+
+    if (!isValidPocketBaseId(userId)) {
+      throw new Error("Invalid user ID format");
     }
 
     // Find existing subscription
@@ -134,6 +157,11 @@ async function updateSubscription(token, stripeData) {
 
     if (!userId) {
       console.error("No userId found in webhook data");
+      return;
+    }
+
+    if (!isValidPocketBaseId(userId)) {
+      console.error("Invalid userId format in webhook data:", userId);
       return;
     }
 
@@ -212,17 +240,48 @@ async function updateSubscription(token, stripeData) {
   }
 }
 
-app.post("/stripe-webhook", async (req, res) => {
+const webhookLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 100, // limit each IP to 100 requests per minute
+  message: { error: "Too many requests" },
+});
+
+app.post("/stripe-webhook", webhookLimiter, async (req, res) => {
+  // Verify webhook signature to ensure the request is from Stripe
+  const signature = req.headers["stripe-signature"];
+
+  if (!signature) {
+    console.error("⚠️ Webhook Error: Missing stripe-signature header");
+    return res.status(400).json({ error: "Missing stripe-signature header" });
+  }
+
+  if (!STRIPE_WEBHOOK_SECRET) {
+    console.error("⚠️ Webhook Error: STRIPE_WEBHOOK_SECRET not configured");
+    return res.status(500).json({ error: "Webhook secret not configured" });
+  }
+
+  let event;
+
   try {
-    // TODO: Verify webhook signature with Stripe's webhook secret
-    // const signature = req.headers['stripe-signature'];
-    // const event = stripe.webhooks.constructEvent(req.body, signature, STRIPE_WEBHOOK_SECRET);
+    // Verify the webhook signature using Stripe's library
+    // This ensures the webhook actually came from Stripe and wasn't forged
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      signature,
+      STRIPE_WEBHOOK_SECRET,
+    );
+  } catch (err) {
+    console.error(`⚠️ Webhook signature verification failed: ${err.message}`);
+    return res
+      .status(400)
+      .json({ error: `Webhook signature verification failed: ${err.message}` });
+  }
 
-    const event = JSON.parse(req.body.toString());
-    const eventType = event.type;
+  // Signature verified - process the event
+  const eventType = event.type;
+  console.log(`✅ Verified Stripe webhook: ${eventType}`);
 
-    console.log(`Received Stripe webhook: ${eventType}`);
-
+  try {
     const token = await getAdminToken();
 
     switch (eventType) {
@@ -265,7 +324,7 @@ app.post("/stripe-webhook", async (req, res) => {
 
     res.status(200).json({ received: true });
   } catch (error) {
-    console.error("Webhook error:", error);
+    console.error("Webhook processing error:", error);
     res.status(500).json({ error: "Webhook processing failed" });
   }
 });
@@ -277,10 +336,12 @@ app.get("/health", (req, res) => {
 app.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════════════════╗
-║  Mercury Webhooks Service                        ║
-║  Running on http://localhost:${PORT}                 ║
+║  Mercury Webhooks Service                         ║
+║  Running on http://localhost:${PORT}                  ║
 ║                                                   ║
-║  POST /stripe-webhook                             ║
+║  POST /stripe-webhook (signature verified)        ║
+║                                                   ║
+║  Security: ${STRIPE_WEBHOOK_SECRET ? "✅ Webhook signature verification enabled" : "❌ STRIPE_WEBHOOK_SECRET missing!"}
 ╚═══════════════════════════════════════════════════╝
   `);
 });

@@ -1,34 +1,53 @@
-import { ActionIcon, Button, Collapse, Divider, Group, Paper, Stack, Title } from '@mantine/core';
-import { useForm } from '@mantine/form';
-import { IconArrowLeft } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
-import { useLoading } from '../contexts/LoadingContext';
-import { getCountryCode } from '../data/countries';
-import { useAuth } from '../hooks/useAuth';
-import { useBanknoteImages } from '../hooks/useBanknoteImages';
-import { usePmgComments } from '../hooks/usePmgComments';
-import type { Banknote, BanknoteFormData, PmgGrade } from '../types/banknote';
-import { PMG_GRADES } from '../types/banknote';
-import { extractDataFromImages as extractDataFromImagesHelper, selectNumberInputOnFocus } from './BanknoteForm/BanknoteForm.helpers';
-import { DenominationSection } from './BanknoteForm/DenominationSection';
-import { DetailsSection } from './BanknoteForm/DetailsSection';
-import { DisplaySettingsSection } from './BanknoteForm/DisplaySettingsSection';
-import { ImagesSection } from './BanknoteForm/ImagesSection';
-import { OriginSection } from './BanknoteForm/OriginSection';
-import { PmgSection } from './BanknoteForm/PmgSection';
-import { PurchaseSection } from './BanknoteForm/PurchaseSection';
-import { useBanknoteFormSubmission } from './BanknoteForm/useBanknoteFormSubmission';
-import { YearSection } from './BanknoteForm/YearSection';
-import { CollapsibleSectionHeader } from './CollapsibleSectionHeader';
+import {
+  ActionIcon,
+  Button,
+  Collapse,
+  Divider,
+  Group,
+  Paper,
+  Stack,
+  Title,
+} from "@mantine/core";
+import { useForm } from "@mantine/form";
+import { IconArrowLeft } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
+import { useLoading } from "../contexts/LoadingContext";
+import { getCountryCode } from "../data/countries";
+import { useAuth } from "../hooks/useAuth";
+import { useBanknoteImages } from "../hooks/useBanknoteImages";
+import { usePmgComments } from "../hooks/usePmgComments";
+import type { Banknote, BanknoteFormData, PmgGrade } from "../types/banknote";
+import { PMG_GRADES } from "../types/banknote";
+import {
+  extractDataFromImages as extractDataFromImagesHelper,
+  selectNumberInputOnFocus,
+} from "./BanknoteForm/BanknoteForm.helpers";
+import { DenominationSection } from "./BanknoteForm/DenominationSection";
+import { DetailsSection } from "./BanknoteForm/DetailsSection";
+import { DisplaySettingsSection } from "./BanknoteForm/DisplaySettingsSection";
+import { ImagesSection } from "./BanknoteForm/ImagesSection";
+import { OriginSection } from "./BanknoteForm/OriginSection";
+import { PmgSection } from "./BanknoteForm/PmgSection";
+import { PurchaseSection } from "./BanknoteForm/PurchaseSection";
+import { useBanknoteFormSubmission } from "./BanknoteForm/useBanknoteFormSubmission";
+import { YearSection } from "./BanknoteForm/YearSection";
+import { CollapsibleSectionHeader } from "./CollapsibleSectionHeader";
 
 interface BanknoteFormProps {
   banknote?: Banknote;
-  onSubmit: (data: BanknoteFormData & { obverseImage?: File; reverseImage?: File }) => Promise<void>;
+  onSubmit: (
+    data: BanknoteFormData & { obverseImage?: File; reverseImage?: File }
+  ) => Promise<void>;
   onCancel: () => void;
   currentFeaturedCount?: number; // Number of currently featured banknotes (excluding the one being edited)
 }
 
-export function BanknoteForm({ banknote, onSubmit, onCancel, currentFeaturedCount = 0 }: BanknoteFormProps) {
+export function BanknoteForm({
+  banknote,
+  onSubmit,
+  onCancel,
+  currentFeaturedCount = 0,
+}: BanknoteFormProps) {
   const { user } = useAuth();
   const { setLoading } = useLoading();
   const isEditing = !!banknote;
@@ -40,7 +59,7 @@ export function BanknoteForm({ banknote, onSubmit, onCancel, currentFeaturedCoun
       details: true, // Always expanded by default
     };
 
-    const saved = localStorage.getItem('banknoteFormSectionsOpen');
+    const saved = localStorage.getItem("banknoteFormSectionsOpen");
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -62,11 +81,17 @@ export function BanknoteForm({ banknote, onSubmit, onCancel, currentFeaturedCoun
 
   // Save to localStorage whenever sections change
   useEffect(() => {
-    localStorage.setItem('banknoteFormSectionsOpen', JSON.stringify(sectionsOpen));
+    localStorage.setItem(
+      "banknoteFormSectionsOpen",
+      JSON.stringify(sectionsOpen)
+    );
   }, [sectionsOpen]);
 
   const toggleSection = (section: keyof typeof sectionsOpen) => {
-    setSectionsOpen((prev: typeof sectionsOpen) => ({ ...prev, [section]: !prev[section] }));
+    setSectionsOpen((prev: typeof sectionsOpen) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
   };
 
   // Image management hook
@@ -88,48 +113,50 @@ export function BanknoteForm({ banknote, onSubmit, onCancel, currentFeaturedCoun
 
   const form = useForm<BanknoteFormData>({
     initialValues: {
-      noteType: banknote?.noteType || 'world',
-      country: banknote?.country || '',
-      countryCode: banknote?.countryCode || '',
-      authority: banknote?.authority || '',
-      city: banknote?.city || '',
-      pickNumber: banknote?.pickNumber || '',
+      noteType: banknote?.noteType || "world",
+      country: banknote?.country || "",
+      countryCode: banknote?.countryCode || "",
+      authority: banknote?.authority || "",
+      city: banknote?.city || "",
+      pickNumber: banknote?.pickNumber || "",
       faceValue: banknote?.faceValue || 0,
-      currency: banknote?.currency || '',
+      currency: banknote?.currency || "",
       yearOfIssueSingle: banknote?.yearOfIssueSingle,
       isRangeOfYearOfIssue: banknote?.isRangeOfYearOfIssue || false,
       yearOfIssueStart: banknote?.yearOfIssueStart,
       yearOfIssueEnd: banknote?.yearOfIssueEnd,
-      pmgCert: banknote?.pmgCert || '',
-      grade: banknote?.grade || '65',
-      pmgComments: '', // Managed by pmgComments state array
-      isEpq: banknote?.isEpq ?? (() => {
-        const initialGrade = banknote?.grade || '65';
-        const highGrades = ['65', '66', '67', '68', '69', '70'];
-        return highGrades.includes(initialGrade);
-      })(),
+      pmgCert: banknote?.pmgCert || "",
+      grade: banknote?.grade || "65",
+      pmgComments: "", // Managed by pmgComments state array
+      isEpq:
+        banknote?.isEpq ??
+        (() => {
+          const initialGrade = banknote?.grade || "65";
+          const highGrades = ["65", "66", "67", "68", "69", "70"];
+          return highGrades.includes(initialGrade);
+        })(),
       isSpecimen: banknote?.isSpecimen || false,
-      serialNumber: banknote?.serialNumber || '',
-      watermark: banknote?.watermark || '',
-      purchasePriceCurrency: banknote?.purchasePriceCurrency || 'USD',
+      serialNumber: banknote?.serialNumber || "",
+      watermark: banknote?.watermark || "",
+      purchasePriceCurrency: banknote?.purchasePriceCurrency || "USD",
       purchasePrice: banknote?.purchasePrice || 0,
-      dateOfPurchase: banknote?.dateOfPurchase || '',
+      dateOfPurchase: banknote?.dateOfPurchase || "",
       isVisibleInCollection: banknote?.isVisibleInCollection ?? true,
       isFeatured: banknote?.isFeatured || false,
     },
   });
 
-  const handleNoteTypeChange = (value: 'world' | 'us') => {
-    form.setFieldValue('noteType', value);
-    if (value === 'us') {
+  const handleNoteTypeChange = (value: "world" | "us") => {
+    form.setFieldValue("noteType", value);
+    if (value === "us") {
       // For US notes, set defaults
-      form.setFieldValue('currency', 'USD');
-      form.setFieldValue('currencyCode', 'USD');
-      form.setFieldValue('countryCode', 'us');
+      form.setFieldValue("currency", "USD");
+      form.setFieldValue("currencyCode", "USD");
+      form.setFieldValue("countryCode", "us");
     } else {
       // For world notes, clear US-specific defaults
-      if (form.values.currency === 'USD' && form.values.country === '') {
-        form.setFieldValue('currency', '');
+      if (form.values.currency === "USD" && form.values.country === "") {
+        form.setFieldValue("currency", "");
       }
     }
   };
@@ -146,54 +173,58 @@ export function BanknoteForm({ banknote, onSubmit, onCancel, currentFeaturedCoun
         }
 
         // Handle country/authority based on note type
-        if (data.noteType === 'world' && data.country) {
-          form.setFieldValue('country', data.country);
+        if (data.noteType === "world" && data.country) {
+          form.setFieldValue("country", data.country);
           const code = getCountryCode(data.country);
           if (code) {
-            form.setFieldValue('countryCode', code);
+            form.setFieldValue("countryCode", code);
           }
           if (data.authority) {
-            form.setFieldValue('authority', data.authority);
+            form.setFieldValue("authority", data.authority);
           }
-        } else if (data.noteType === 'us') {
+        } else if (data.noteType === "us") {
           // Set country for US notes (extracted data now includes it)
           if (data.country) {
-            form.setFieldValue('country', data.country);
+            form.setFieldValue("country", data.country);
           }
           if (data.authority) {
-            form.setFieldValue('authority', data.authority);
+            form.setFieldValue("authority", data.authority);
           }
           if (data.city) {
-            form.setFieldValue('city', data.city);
+            form.setFieldValue("city", data.city);
           }
         }
         if (data.grade && PMG_GRADES.includes(data.grade as PmgGrade)) {
           handleGradeChange(data.grade);
         } else if (data.isEpq !== undefined) {
-          form.setFieldValue('isEpq', data.isEpq);
+          form.setFieldValue("isEpq", data.isEpq);
         }
-        if (data.isSpecimen !== undefined) form.setFieldValue('isSpecimen', data.isSpecimen);
-        if (data.pickNumber) form.setFieldValue('pickNumber', data.pickNumber);
+        if (data.isSpecimen !== undefined)
+          form.setFieldValue("isSpecimen", data.isSpecimen);
+        if (data.pickNumber) form.setFieldValue("pickNumber", data.pickNumber);
 
         if (data.yearOfIssue) {
           const yearMatch = data.yearOfIssue.match(/(\d{4})-(\d{4})/);
           if (yearMatch) {
-            form.setFieldValue('isRangeOfYearOfIssue', true);
-            form.setFieldValue('yearOfIssueStart', parseInt(yearMatch[1]));
-            form.setFieldValue('yearOfIssueEnd', parseInt(yearMatch[2]));
+            form.setFieldValue("isRangeOfYearOfIssue", true);
+            form.setFieldValue("yearOfIssueStart", parseInt(yearMatch[1]));
+            form.setFieldValue("yearOfIssueEnd", parseInt(yearMatch[2]));
           } else {
-            form.setFieldValue('isRangeOfYearOfIssue', false);
-            form.setFieldValue('yearOfIssueSingle', parseInt(data.yearOfIssue));
+            form.setFieldValue("isRangeOfYearOfIssue", false);
+            form.setFieldValue("yearOfIssueSingle", parseInt(data.yearOfIssue));
           }
         }
 
-        if (data.faceValue) form.setFieldValue('faceValue', data.faceValue);
-        if (data.currency) form.setFieldValue('currency', data.currency);
-        if (data.serialNumber) form.setFieldValue('serialNumber', data.serialNumber);
-        if (data.watermark) form.setFieldValue('watermark', data.watermark);
+        if (data.faceValue) form.setFieldValue("faceValue", data.faceValue);
+        if (data.currency) form.setFieldValue("currency", data.currency);
+        if (data.serialNumber)
+          form.setFieldValue("serialNumber", data.serialNumber);
+        if (data.watermark) form.setFieldValue("watermark", data.watermark);
 
         if (data.pmgComments && data.pmgComments.length > 0) {
-          const filteredComments = data.pmgComments.filter((c: string) => c.trim());
+          const filteredComments = data.pmgComments.filter((c: string) =>
+            c.trim()
+          );
           if (filteredComments.length > 0) {
             setComments(filteredComments);
           }
@@ -205,19 +236,19 @@ export function BanknoteForm({ banknote, onSubmit, onCancel, currentFeaturedCoun
   const handleNumberInputFocus = selectNumberInputOnFocus;
 
   const handleCountryChange = (value: string) => {
-    form.setFieldValue('country', value);
+    form.setFieldValue("country", value);
     const code = getCountryCode(value);
     if (code) {
-      form.setFieldValue('countryCode', code);
+      form.setFieldValue("countryCode", code);
     }
   };
 
   const handleGradeChange = (value: string | null) => {
     if (value) {
-      form.setFieldValue('grade', value as PmgGrade);
+      form.setFieldValue("grade", value as PmgGrade);
       // Automatically set EPQ for grades 65-70
-      const highGrades = ['65', '66', '67', '68', '69', '70'];
-      form.setFieldValue('isEpq', highGrades.includes(value));
+      const highGrades = ["65", "66", "67", "68", "69", "70"];
+      form.setFieldValue("isEpq", highGrades.includes(value));
     }
   };
 
@@ -234,7 +265,8 @@ export function BanknoteForm({ banknote, onSubmit, onCancel, currentFeaturedCoun
     setLoading,
   });
 
-  const isProcessing = imageHandlers.fetchingImages || extractingData || submitting;
+  const isProcessing =
+    imageHandlers.fetchingImages || extractingData || submitting;
 
   return (
     <Paper p="lg" radius="md" withBorder>
@@ -248,7 +280,9 @@ export function BanknoteForm({ banknote, onSubmit, onCancel, currentFeaturedCoun
           >
             <IconArrowLeft size={20} />
           </ActionIcon>
-          <Title order={3}>{isEditing ? 'Edit Banknote' : 'Add Banknote'}</Title>
+          <Title order={3}>
+            {isEditing ? "Edit Banknote" : "Add Banknote"}
+          </Title>
         </Group>
       </Group>
 
@@ -257,7 +291,7 @@ export function BanknoteForm({ banknote, onSubmit, onCancel, currentFeaturedCoun
           <CollapsibleSectionHeader
             title="Images"
             isOpen={sectionsOpen.images}
-            onToggle={() => toggleSection('images')}
+            onToggle={() => toggleSection("images")}
           />
           <Collapse in={sectionsOpen.images}>
             <ImagesSection
@@ -273,9 +307,14 @@ export function BanknoteForm({ banknote, onSubmit, onCancel, currentFeaturedCoun
               isProcessing={isProcessing}
               obverseFile={imageHandlers.obverseFile}
               reverseFile={imageHandlers.reverseFile}
-              onPmgCertChange={(value) => form.setFieldValue('pmgCert', value)}
+              onPmgCertChange={(value) => form.setFieldValue("pmgCert", value)}
               onGradeChange={handleGradeChange}
-              onFetchImages={() => imageHandlers.fetchPMGImages(form.values.pmgCert, form.values.grade)}
+              onFetchImages={() =>
+                imageHandlers.fetchPMGImages(
+                  form.values.pmgCert,
+                  form.values.grade
+                )
+              }
               onExtractData={extractDataFromImages}
               onClearImages={imageHandlers.clearImages}
               onObverseUrlChange={imageHandlers.handleObverseUrlChange}
@@ -300,7 +339,7 @@ export function BanknoteForm({ banknote, onSubmit, onCancel, currentFeaturedCoun
           <CollapsibleSectionHeader
             title="Details"
             isOpen={sectionsOpen.details}
-            onToggle={() => toggleSection('details')}
+            onToggle={() => toggleSection("details")}
           />
           <Collapse in={sectionsOpen.details}>
             <Stack gap="md">
@@ -333,10 +372,7 @@ export function BanknoteForm({ banknote, onSubmit, onCancel, currentFeaturedCoun
                 onCommentChange={handleCommentChange}
               />
               <Divider />
-              <DetailsSection
-                form={form}
-                isProcessing={isProcessing}
-              />
+              <DetailsSection form={form} isProcessing={isProcessing} />
               <Divider />
               <PurchaseSection
                 form={form}
@@ -356,11 +392,15 @@ export function BanknoteForm({ banknote, onSubmit, onCancel, currentFeaturedCoun
 
           {/* Actions */}
           <Group justify="flex-end" mt="lg">
-            <Button variant="default" onClick={onCancel} disabled={isProcessing}>
+            <Button
+              variant="default"
+              onClick={onCancel}
+              disabled={isProcessing}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={isProcessing}>
-              {isEditing ? 'Save Changes' : 'Add Banknote'}
+            <Button type="submit" disabled={isProcessing} loading={submitting}>
+              {isEditing ? "Save Changes" : "Add Banknote"}
             </Button>
           </Group>
         </Stack>

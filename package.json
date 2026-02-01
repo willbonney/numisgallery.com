@@ -12,6 +12,9 @@
     "setup": "npm run install:all && npm run setup:user-settings",
     "setup:user-settings": "node backend/setup-user-settings.cjs",
     "docker:setup": "docker pull ghcr.io/muchobien/pocketbase:latest",
+    "update:pocketbase": "node scripts/update-pocketbase.js",
+    "update:hermes": "cd ../hermes && node scripts/update-hermes.js",
+    "update:all": "npm run update:pocketbase && npm run update:hermes",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
@@ -21,6 +24,7 @@
   "devDependencies": {
     "@playwright/test": "^1.57.0",
     "concurrently": "^8.2.2",
+    "dotenv": "^16.4.0",
     "husky": "^9.1.7"
   },
   "dependencies": {
