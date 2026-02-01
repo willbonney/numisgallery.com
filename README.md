@@ -1,12 +1,14 @@
 # NumisGallery.com
 
+_**LLM usage:** 80% (Opus 4.5)_
+
 NumisGallery is a modern web application for collectors to manage, organize, and showcase their **banknote collections**. Built with a full-stack architecture, it supports user authentication, AI-powered scraping and data extraction from PMG (Paper Money Guaranty) images, and a responsive frontend.
 
 <p align="center">
-<img src="architecture.png"/>
+<img src="architecture1.png"/>
 </p>
   
-## Features
+### Features
 
 - **PMG Integration**: Enter certification number and grade to fetch high-res obverse/reverse images via an external scraping API.
 - **AI Data Extraction**: Automatically extracts key details from images using advanced vision models (InternVL):
