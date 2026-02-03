@@ -38,6 +38,9 @@ import {
 const STRIPE_PUBLISHABLE_KEY =
   import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "pk_live_default_key";
 
+const WEBHOOKS_URL =
+  import.meta.env.VITE_WEBHOOKS_URL || "https://numisgallery-webhooks.fly.dev";
+
 const SHOW_SUBSCRIPTIONS = import.meta.env.VITE_SHOW_SUBSCRIPTIONS === "true";
 
 interface Feature {
@@ -138,14 +141,35 @@ export function SubscriptionPage() {
       }
 
       if (tierId === "free") {
-        // Free tier - no checkout needed, just show message
-        alert(
-          "You are already on the Free plan or can downgrade from your account settings."
-        );
+        // Downgrade - redirect to Stripe billing portal to manage/cancel subscription
+        if (subscription?.stripeCustomerId) {
+          const response = await fetch(
+            `${WEBHOOKS_URL}/create-portal-session`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                customerId: subscription.stripeCustomerId,
+                returnUrl: `${window.location.origin}/subscription`,
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error("Failed to create portal session");
+          }
+
+          const { url } = await response.json();
+          window.location.href = url;
+        } else {
+          alert("You are already on the Free plan.");
+        }
         return;
       }
 
-      const response = await fetch("/api/checkout", {
+      const response = await fetch(`${WEBHOOKS_URL}/create-checkout-session`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -153,7 +177,7 @@ export function SubscriptionPage() {
         body: JSON.stringify({
           priceId,
           customerEmail: user.email,
-          clientReferenceId: user.id,
+          userId: user.id,
           successUrl: `${window.location.origin}/subscription?success=true`,
           cancelUrl: `${window.location.origin}/subscription`,
         }),
