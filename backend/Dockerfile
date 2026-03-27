@@ -1,7 +1,7 @@
 # PocketBase Dockerfile for Fly.io
 FROM alpine:latest
 
-ARG PB_VERSION=0.32.0
+ARG PB_VERSION=0.36.7
 
 RUN apk add --no-cache \
     unzip \
