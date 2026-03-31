@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import pb from "../../lib/pocketbase";
 import type { User } from "../types";
 import { AuthContext } from "./AuthContext";
@@ -32,14 +32,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   });
   const [loading, setLoading] = useState(false);
 
-  const checkExpiry = useCallback(() => {
-    // If a token exists but is no longer valid (expired), force logout
-    if (pb.authStore.token && !pb.authStore.isValid) {
-      pb.authStore.clear();
-      setUser(null);
-    }
-  }, []);
-
   useEffect(() => {
     const unsubscribe = pb.authStore.onChange(() => {
       const newUser = toUser(pb.authStore.record);
@@ -50,23 +42,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
-    // Poll every 60 s so a long-lived tab gets logged out when the token expires
-    const interval = setInterval(checkExpiry, 60_000);
-
-    // Also check immediately when the tab becomes visible again (e.g. after sleep)
+    // Check when the tab becomes visible again (e.g. user returns after a long absence)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        checkExpiry();
+      if (
+        document.visibilityState === "visible" &&
+        pb.authStore.token &&
+        !pb.authStore.isValid
+      ) {
+        pb.authStore.clear();
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       unsubscribe();
-      clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [checkExpiry]);
+  }, []);
 
   const login = async (email: string, password: string) => {
     setLoading(true);
