@@ -162,17 +162,9 @@ export function BanknoteForm({
   };
 
   const extractDataFromImages = () => {
-    // Prefer the already-downloaded proxiedDataUrl so the backend can skip
-    // a redundant S3 fetch — urlToBase64 passes data: URIs straight through.
-    const obverseSource =
-      imageHandlers.obverseState.proxiedDataUrl ||
-      imageHandlers.obverseState.originalUrl;
-    const reverseSource =
-      imageHandlers.reverseState.proxiedDataUrl ||
-      imageHandlers.reverseState.originalUrl;
     extractDataFromImagesHelper(
-      obverseSource,
-      reverseSource,
+      imageHandlers.obverseState.originalUrl,
+      imageHandlers.reverseState.originalUrl,
       setExtractingData,
       (data) => {
         // Handle note type - use handleNoteTypeChange to ensure SegmentedControl updates
