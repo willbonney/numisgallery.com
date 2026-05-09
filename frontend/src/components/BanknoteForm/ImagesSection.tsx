@@ -142,20 +142,28 @@ export function ImagesSection({
     }
   }, [fetchingImages, extractingData, reloadSubscription]);
 
-  // Update loading context when fetching or extracting
+  // Drive the loading overlay for the AI extraction step.
+  // The PMG fetch step is fully managed by fetchPMGImages() itself, so we
+  // deliberately do NOT touch loading state when only fetchingImages changes —
+  // doing so (especially in the cleanup) would immediately cancel the overlay
+  // that fetchPMGImages just set.
   React.useEffect(() => {
     if (extractingData) {
       setLoading(true, "Extracting data from images...");
     } else if (!fetchingImages) {
-      // Only clear if we're not in the middle of a fetch
-      // (fetchPMGImages manages its own loading messages)
+      // Both operations idle — ensure overlay is cleared.
       setLoading(false);
     }
-
-    return () => {
-      setLoading(false);
-    };
+    // No cleanup here: fetchPMGImages calls setLoading(false) in its own
+    // finally block, so a cleanup would race and hide the overlay early.
   }, [fetchingImages, extractingData, setLoading]);
+
+  // Safety net: clear overlay if this component unmounts mid-operation.
+  React.useEffect(() => {
+    return () => setLoading(false);
+    // setLoading is stable (useCallback), so this only runs on unmount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleClearObverse = () => {
     if (obverseState.isPmgFetched) {
