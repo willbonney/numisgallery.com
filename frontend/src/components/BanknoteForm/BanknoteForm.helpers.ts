@@ -1,21 +1,21 @@
-import { notifications } from '@mantine/notifications';
-import pb from '../../lib/pocketbase';
-import type { ImageAdjustments } from '../../utils/imageProcessing';
+import { notifications } from "@mantine/notifications";
+import pb from "../../lib/pocketbase";
+import type { ImageAdjustments } from "../../utils/imageProcessing";
 import {
   applyImageAdjustments,
   autoAdjustImage,
   DEFAULT_ADJUSTMENTS,
   proxyImage,
-} from '../../utils/imageProcessing';
+} from "../../utils/imageProcessing";
 
-const SCRAPER_URL = import.meta.env.VITE_SCRAPER_URL || 'http://localhost:3001';
+const SCRAPER_URL = import.meta.env.VITE_SCRAPER_URL || "http://localhost:3001";
 
 // Helper to get auth headers for scraper API calls
 function getAuthHeaders(): HeadersInit {
   const token = pb.authStore.token;
   return {
-    'Content-Type': 'application/json',
-    ...(token && { 'Authorization': `Bearer ${token}` })
+    "Content-Type": "application/json",
+    ...(token && { Authorization: `Bearer ${token}` }),
   };
 }
 
@@ -42,12 +42,12 @@ type BaseExtractedPMGData = {
   serialNumber?: string;
   watermark?: string;
   pmgComments?: string[];
-  confidence?: 'high' | 'medium' | 'low';
+  confidence?: "high" | "medium" | "low";
 };
 
 // World notes have a country and optional authority, no city
 type WorldNoteExtractedData = BaseExtractedPMGData & {
-  noteType: 'world';
+  noteType: "world";
   country: string;
   authority?: string; // e.g., "Banque de France" (text after comma)
   city?: never;
@@ -55,7 +55,7 @@ type WorldNoteExtractedData = BaseExtractedPMGData & {
 
 // US notes have authority and optional city, country is optional (extracted by AI)
 type USNoteExtractedData = BaseExtractedPMGData & {
-  noteType: 'us';
+  noteType: "us";
   country?: string; // e.g., "United States" (extracted by AI, not on label)
   authority: string; // e.g., "Federal Reserve", "United States"
   city?: string; // e.g., "Kansas City" (only for Federal Reserve Notes)
@@ -91,14 +91,14 @@ async function processImageResult(
         adjustments: DEFAULT_ADJUSTMENTS,
         isPmgFetched: true,
       });
-      
+
       notifications.show({
-        title: 'Images Loaded',
-        message: 'PMG images loaded successfully!',
-        color: 'green',
+        title: "Images Loaded",
+        message: "PMG images loaded successfully!",
+        color: "green",
       });
     } catch (proxyError) {
-      console.error('Failed to convert images:', proxyError);
+      console.error("Failed to convert images:", proxyError);
       setObverseState({
         originalUrl: data.obverseUrl,
         proxiedDataUrl: null,
@@ -114,12 +114,46 @@ async function processImageResult(
         isPmgFetched: true,
       });
       notifications.show({
-        title: 'Images Loaded',
-        message: 'Images loaded (direct URLs). Auto-adjust may not work due to CORS.',
-        color: 'yellow',
+        title: "Images Loaded",
+        message:
+          "Images loaded (direct URLs). Auto-adjust may not work due to CORS.",
+        color: "yellow",
       });
     }
   }
+}
+
+/** Map a BullMQ worker stage name to a human-readable loading message. */
+function stageToMessage(stage: string, progressMessage?: string): string {
+  const map: Record<string, string> = {
+    starting: "Starting request...",
+    rate_limiting:
+      progressMessage || "Rate limiting — waiting before next request...",
+    checking_flaresolverr: "Checking FlareSolverr status...",
+    waiting_flaresolverr: "Waiting for FlareSolverr to start...",
+    fetching: "Bypassing Cloudflare — fetching PMG page...",
+    done: "Images found — loading...",
+  };
+  return map[stage] ?? (progressMessage || "Processing...");
+}
+
+/**
+ * Schedule time-based loading messages for direct-mode (non-queue) requests
+ * where we cannot get server-side progress updates.
+ * Returns a cleanup function that cancels the timers.
+ */
+function scheduleDirectModeMessages(
+  setLoading: (loading: boolean, message?: string) => void
+): () => void {
+  const stages: Array<{ delay: number; msg: string }> = [
+    { delay: 6_000, msg: "Fetching PMG certification page..." },
+    { delay: 18_000, msg: "Parsing image URLs from PMG..." },
+    { delay: 35_000, msg: "Almost done — waiting for response..." },
+  ];
+  const timers = stages.map(({ delay, msg }) =>
+    setTimeout(() => setLoading(true, msg), delay)
+  );
+  return () => timers.forEach(clearTimeout);
 }
 
 export async function fetchPMGImages(
@@ -127,105 +161,164 @@ export async function fetchPMGImages(
   grade: string,
   setObverseState: ImageStateSetter,
   setReverseState: ImageStateSetter,
-  setFetchingImages: (value: boolean) => void
+  setFetchingImages: (value: boolean) => void,
+  setLoading: (loading: boolean, message?: string) => void
 ) {
-  if (!cert || !grade || grade === 'Not Listed') {
+  if (!cert || !grade || grade === "Not Listed") {
     notifications.show({
-      title: 'Missing Info',
-      message: 'Enter cert number and select grade first',
-      color: 'yellow',
+      title: "Missing Info",
+      message: "Enter cert number and select grade first",
+      color: "yellow",
     });
     return;
   }
 
   setFetchingImages(true);
-  
+
   try {
-    // Submit request (may be queued or processed directly)
-    const submitResponse = await fetch(
-      `${SCRAPER_URL}/api/pmg-images`,
-      {
-        method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          cert: cert.trim(),
-          grade: grade,
-        }),
+    // ── Pre-flight: check FlareSolverr + Fly.io machine state ────────────────
+    setLoading(true, "Checking services...");
+
+    let flareSolverrOnline = false;
+    let flyMachineState: string | null = null;
+
+    try {
+      const statusRes = await fetch(`${SCRAPER_URL}/api/status`, {
+        headers: getAuthHeaders(),
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (statusRes.ok) {
+        const status = await statusRes.json();
+        flareSolverrOnline = status.flareSolverr?.status === "online";
+        flyMachineState = status.flyMachine?.state ?? null;
       }
-    );
-    
-    const submitData = await submitResponse.json();
-    
-    if (!submitResponse.ok) {
-      throw new Error(submitData.error || 'Failed to process request');
+    } catch {
+      // Status check failed — proceed anyway, backend will handle startup
     }
-    
-    // Check if response is from queue system or direct processing
-    if (submitData.jobId && submitData.status === 'queued') {
-      // Queue mode - poll for completion
+
+    if (!flareSolverrOnline) {
+      if (flyMachineState === "stopped") {
+        setLoading(true, "Starting FlareSolverr on Fly.io...");
+      } else if (flyMachineState === "starting") {
+        setLoading(true, "FlareSolverr machine is starting up on Fly.io...");
+      } else {
+        setLoading(true, "Waiting for FlareSolverr to start...");
+      }
+    } else {
+      setLoading(true, "Submitting request...");
+    }
+
+    // ── Submit job ────────────────────────────────────────────────────────────
+    const submitResponse = await fetch(`${SCRAPER_URL}/api/pmg-images`, {
+      method: "POST",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ cert: cert.trim(), grade }),
+    });
+
+    const submitData = await submitResponse.json();
+
+    if (!submitResponse.ok) {
+      throw new Error(submitData.error || "Failed to process request");
+    }
+
+    // ── Queue mode ────────────────────────────────────────────────────────────
+    if (submitData.jobId && submitData.status === "queued") {
       const jobId = submitData.jobId;
       const initialPosition = submitData.position;
-      
+
       if (initialPosition > 1) {
+        setLoading(true, `Queued (position ${initialPosition}) — waiting...`);
         notifications.show({
-          title: 'Request Queued',
+          title: "Request Queued",
           message: `Your request is in queue (position ${initialPosition}). Processing...`,
-          color: 'blue',
+          color: "blue",
           autoClose: 3000,
         });
+      } else {
+        setLoading(true, "Processing...");
       }
-      
-      // Poll for job completion
-      const pollInterval = 2000; // Poll every 2 seconds
-      const maxPollTime = 300000; // Max 5 minutes
+
+      const pollInterval = 2_000;
+      const maxPollTime = 300_000;
       const startTime = Date.now();
-      
+
       while (Date.now() - startTime < maxPollTime) {
         const statusResponse = await fetch(
           `${SCRAPER_URL}/api/pmg-images/${jobId}`,
           { headers: getAuthHeaders() }
         );
-        
+
         const statusData = await statusResponse.json();
-        
+
         if (!statusResponse.ok) {
-          throw new Error(statusData.error || 'Failed to check job status');
+          throw new Error(statusData.error || "Failed to check job status");
         }
-        
-        if (statusData.status === 'completed' && statusData.result) {
-          const data = statusData.result;
-          await processImageResult(data, setObverseState, setReverseState);
-          break; // Job completed
-        } else if (statusData.status === 'failed') {
-          throw new Error(statusData.error || 'Job failed');
-        } else if (statusData.position > 0) {
-          // Still in queue, show position update
-          console.log(`[Queue] Position: ${statusData.position}`);
+
+        // Map server state → loading message
+        if (statusData.status === "waiting") {
+          const pos = statusData.position;
+          setLoading(
+            true,
+            pos > 0
+              ? `Queued (position ${pos}) — waiting...`
+              : "Queued — waiting..."
+          );
+        } else if (statusData.status === "active") {
+          const prog = statusData.progress as {
+            stage?: string;
+            message?: string;
+          } | null;
+          setLoading(
+            true,
+            prog?.stage
+              ? stageToMessage(prog.stage, prog.message)
+              : "Bypassing Cloudflare..."
+          );
         }
-        
-        // Wait before next poll
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+        if (statusData.status === "completed" && statusData.result) {
+          setLoading(true, "Loading images...");
+          await processImageResult(
+            statusData.result,
+            setObverseState,
+            setReverseState
+          );
+          break;
+        } else if (statusData.status === "failed") {
+          throw new Error(statusData.error || "Job failed");
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
       }
-      
+
       if (Date.now() - startTime >= maxPollTime) {
-        throw new Error('Request timed out. Please try again.');
+        throw new Error("Request timed out. Please try again.");
       }
+
+      // ── Direct mode ───────────────────────────────────────────────────────────
     } else {
-      // Direct processing mode - result is immediate
-      await processImageResult(submitData, setObverseState, setReverseState);
+      setLoading(true, "Bypassing Cloudflare protection...");
+      const cancelTimers = scheduleDirectModeMessages(setLoading);
+      try {
+        setLoading(true, "Loading images...");
+        await processImageResult(submitData, setObverseState, setReverseState);
+      } finally {
+        cancelTimers();
+      }
     }
-    
   } catch (error) {
     notifications.show({
-      title: 'Fetch Failed',
-      message: error instanceof Error ? error.message : 'Could not fetch images',
-      color: 'red',
+      title: "Fetch Failed",
+      message:
+        error instanceof Error ? error.message : "Could not fetch images",
+      color: "red",
     });
   } finally {
     setFetchingImages(false);
+    setLoading(false);
   }
 }
 
@@ -237,9 +330,9 @@ export async function extractDataFromImages(
 ) {
   if (!obverseUrl || !reverseUrl) {
     notifications.show({
-      title: 'No Images',
-      message: 'Please fetch PMG images first',
-      color: 'red',
+      title: "No Images",
+      message: "Please fetch PMG images first",
+      color: "red",
     });
     return;
   }
@@ -247,7 +340,7 @@ export async function extractDataFromImages(
   setExtractingData(true);
   try {
     const response = await fetch(`${SCRAPER_URL}/api/extract-pmg-data`, {
-      method: 'POST',
+      method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify({
         obverseUrl,
@@ -257,24 +350,25 @@ export async function extractDataFromImages(
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.error || 'Failed to extract data');
+      throw new Error(error.error || "Failed to extract data");
     }
 
     const data = await response.json();
     onDataExtracted(data);
 
     notifications.show({
-      title: 'Data Extracted',
+      title: "Data Extracted",
       message: `Extracted with ${data.confidence} confidence. Please verify all fields, especially Pick/Friedberg Number.`,
-      color: data.confidence === 'high' ? 'green' : 'yellow',
+      color: data.confidence === "high" ? "green" : "yellow",
       autoClose: 8000,
     });
   } catch (error) {
-    console.error('AI extraction error:', error);
+    console.error("AI extraction error:", error);
     notifications.show({
-      title: 'Extraction Failed',
-      message: error instanceof Error ? error.message : 'Could not extract data',
-      color: 'red',
+      title: "Extraction Failed",
+      message:
+        error instanceof Error ? error.message : "Could not extract data",
+      color: "red",
     });
   } finally {
     setExtractingData(false);
@@ -288,7 +382,7 @@ export async function applyImageAdjustmentsDebounced(
   setAdjusting: (value: boolean) => void,
   timeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
 ) {
-  setState(prev => ({ ...prev, adjustments: newAdjustments }));
+  setState((prev) => ({ ...prev, adjustments: newAdjustments }));
 
   if (timeoutRef.current) {
     clearTimeout(timeoutRef.current);
@@ -297,14 +391,18 @@ export async function applyImageAdjustmentsDebounced(
   timeoutRef.current = setTimeout(async () => {
     // Only use proxied data URL to avoid CORS issues
     // Check that it's actually a data URL (starts with "data:")
-    if (!state.proxiedDataUrl || !state.proxiedDataUrl.startsWith('data:')) return;
-    
+    if (!state.proxiedDataUrl || !state.proxiedDataUrl.startsWith("data:"))
+      return;
+
     setAdjusting(true);
     try {
-      const adjusted = await applyImageAdjustments(state.proxiedDataUrl, newAdjustments);
-      setState(prev => ({ ...prev, adjustedDataUrl: adjusted }));
+      const adjusted = await applyImageAdjustments(
+        state.proxiedDataUrl,
+        newAdjustments
+      );
+      setState((prev) => ({ ...prev, adjustedDataUrl: adjusted }));
     } catch (error) {
-      console.error('Failed to adjust image:', error);
+      console.error("Failed to adjust image:", error);
     } finally {
       setAdjusting(false);
     }
@@ -318,11 +416,12 @@ export async function autoAdjustImageWithFeedback(
 ) {
   // Only use proxied data URL to avoid CORS issues
   // Check that it's actually a data URL (starts with "data:")
-  if (!state.proxiedDataUrl || !state.proxiedDataUrl.startsWith('data:')) {
+  if (!state.proxiedDataUrl || !state.proxiedDataUrl.startsWith("data:")) {
     notifications.show({
-      title: 'Cannot Auto-Adjust',
-      message: 'Image must be loaded as a data URL. The image may not have been properly proxied due to CORS restrictions.',
-      color: 'orange',
+      title: "Cannot Auto-Adjust",
+      message:
+        "Image must be loaded as a data URL. The image may not have been properly proxied due to CORS restrictions.",
+      color: "orange",
     });
     return;
   }
@@ -330,22 +429,25 @@ export async function autoAdjustImageWithFeedback(
   setAdjusting(true);
   try {
     const suggestedAdjustments = await autoAdjustImage(state.proxiedDataUrl);
-    const adjusted = await applyImageAdjustments(state.proxiedDataUrl, suggestedAdjustments);
-    setState(prev => ({
+    const adjusted = await applyImageAdjustments(
+      state.proxiedDataUrl,
+      suggestedAdjustments
+    );
+    setState((prev) => ({
       ...prev,
       adjustments: suggestedAdjustments,
       adjustedDataUrl: adjusted,
     }));
     notifications.show({
-      title: 'Auto-Adjusted',
-      message: `Applied: Brightness ${suggestedAdjustments.brightness > 0 ? '+' : ''}${suggestedAdjustments.brightness}, Contrast ${suggestedAdjustments.contrast > 0 ? '+' : ''}${suggestedAdjustments.contrast}`,
-      color: 'blue',
+      title: "Auto-Adjusted",
+      message: `Applied: Brightness ${suggestedAdjustments.brightness > 0 ? "+" : ""}${suggestedAdjustments.brightness}, Contrast ${suggestedAdjustments.contrast > 0 ? "+" : ""}${suggestedAdjustments.contrast}`,
+      color: "blue",
     });
   } catch {
     notifications.show({
-      title: 'Auto-Adjust Failed',
-      message: 'Could not analyze image',
-      color: 'red',
+      title: "Auto-Adjust Failed",
+      message: "Could not analyze image",
+      color: "red",
     });
   } finally {
     setAdjusting(false);
@@ -353,9 +455,10 @@ export async function autoAdjustImageWithFeedback(
 }
 
 // NumberInput requires setTimeout due to internal rendering timing
-export function selectNumberInputOnFocus(event: React.FocusEvent<HTMLInputElement>) {
+export function selectNumberInputOnFocus(
+  event: React.FocusEvent<HTMLInputElement>
+) {
   setTimeout(() => {
     event.target.select();
   }, 0);
 }
-

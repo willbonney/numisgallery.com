@@ -1,13 +1,37 @@
-import { ActionIcon, Box, Button, Group, Loader, Menu, Paper, Popover, Select, SimpleGrid, Stack, Tabs, Text, TextInput, Tooltip } from '@mantine/core';
-import { IconChevronDown, IconDownload, IconInfoCircle, IconLink, IconSparkles, IconUpload, IconWand } from '@tabler/icons-react';
-import React, { useState } from 'react';
-import type { PixelCrop } from 'react-image-crop';
-import { useLoading } from '../../contexts/LoadingContext';
-import { useSubscription } from '../../hooks/useSubscription';
-import { ALL_GRADES } from '../../types/banknote';
-import type { ImageState } from './BanknoteForm.helpers';
-import { FileUpload } from './FileUpload';
-import { ImageEditor } from './ImageEditor';
+import {
+  ActionIcon,
+  Box,
+  Button,
+  Group,
+  Loader,
+  Menu,
+  Paper,
+  Popover,
+  Select,
+  SimpleGrid,
+  Stack,
+  Tabs,
+  Text,
+  TextInput,
+  Tooltip,
+} from "@mantine/core";
+import {
+  IconChevronDown,
+  IconDownload,
+  IconInfoCircle,
+  IconLink,
+  IconSparkles,
+  IconUpload,
+  IconWand,
+} from "@tabler/icons-react";
+import React, { useState } from "react";
+import type { PixelCrop } from "react-image-crop";
+import { useLoading } from "../../contexts/LoadingContext";
+import { useSubscription } from "../../hooks/useSubscription";
+import { ALL_GRADES } from "../../types/banknote";
+import type { ImageState } from "./BanknoteForm.helpers";
+import { FileUpload } from "./FileUpload";
+import { ImageEditor } from "./ImageEditor";
 
 type ImagesSectionProps = {
   pmgCert: string;
@@ -39,10 +63,20 @@ type ImagesSectionProps = {
   onReverseFileUpload: (file: File) => void;
   onClearObverseFile: () => void;
   onClearReverseFile: () => void;
-  onAdjustmentChange: (side: 'obverse' | 'reverse', field: 'brightness' | 'contrast', value: number) => void;
-  onAutoAdjust: (side: 'obverse' | 'reverse') => void;
-  onResetAdjustments: (side: 'obverse' | 'reverse') => void;
-  onCrop: (side: 'obverse' | 'reverse', croppedAreaPixels: PixelCrop, rotatedImageSrc: string, displayedWidth: number, displayedHeight: number) => void;
+  onAdjustmentChange: (
+    side: "obverse" | "reverse",
+    field: "brightness" | "contrast",
+    value: number
+  ) => void;
+  onAutoAdjust: (side: "obverse" | "reverse") => void;
+  onResetAdjustments: (side: "obverse" | "reverse") => void;
+  onCrop: (
+    side: "obverse" | "reverse",
+    croppedAreaPixels: PixelCrop,
+    rotatedImageSrc: string,
+    displayedWidth: number,
+    displayedHeight: number
+  ) => void;
 };
 
 export function ImagesSection({
@@ -82,10 +116,18 @@ export function ImagesSection({
 }: ImagesSectionProps) {
   const { setLoading } = useLoading();
   const { getUsageInfo, reload: reloadSubscription } = useSubscription();
-  const [activeTab, setActiveTab] = useState<string>('pmg');
-  const hasImages = obverseState.proxiedDataUrl || obverseState.originalUrl || reverseState.proxiedDataUrl || reverseState.originalUrl;
-  const hasObverse = !!(obverseState.proxiedDataUrl || obverseState.originalUrl);
-  const hasReverse = !!(reverseState.proxiedDataUrl || reverseState.originalUrl);
+  const [activeTab, setActiveTab] = useState<string>("pmg");
+  const hasImages =
+    obverseState.proxiedDataUrl ||
+    obverseState.originalUrl ||
+    reverseState.proxiedDataUrl ||
+    reverseState.originalUrl;
+  const hasObverse = !!(
+    obverseState.proxiedDataUrl || obverseState.originalUrl
+  );
+  const hasReverse = !!(
+    reverseState.proxiedDataUrl || reverseState.originalUrl
+  );
 
   const usage = getUsageInfo();
 
@@ -102,11 +144,11 @@ export function ImagesSection({
 
   // Update loading context when fetching or extracting
   React.useEffect(() => {
-    if (fetchingImages) {
-      setLoading(true, 'Fetching PMG Images...');
-    } else if (extractingData) {
-      setLoading(true, 'Extracting Data...');
-    } else {
+    if (extractingData) {
+      setLoading(true, "Extracting data from images...");
+    } else if (!fetchingImages) {
+      // Only clear if we're not in the middle of a fetch
+      // (fetchPMGImages manages its own loading messages)
       setLoading(false);
     }
 
@@ -120,7 +162,7 @@ export function ImagesSection({
       onClearImages();
     } else {
       onClearObverseFile();
-      onObverseUrlChange('');
+      onObverseUrlChange("");
     }
   };
 
@@ -129,13 +171,12 @@ export function ImagesSection({
       onClearImages();
     } else {
       onClearReverseFile();
-      onReverseUrlChange('');
+      onReverseUrlChange("");
     }
   };
 
   return (
     <Paper p="md" radius="md" withBorder shadow="sm">
-
       {hasImages && (
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" mt="md">
           {hasObverse ? (
@@ -144,19 +185,34 @@ export function ImagesSection({
               state={obverseState}
               isAdjusting={adjustingObverse}
               isProcessing={isProcessing}
-              onAdjustmentChange={(field, value) => onAdjustmentChange('obverse', field, value)}
-              onAutoAdjust={() => onAutoAdjust('obverse')}
-              onResetAdjustments={() => onResetAdjustments('obverse')}
-              onCrop={(area, rotatedSrc, displayedWidth, displayedHeight) => onCrop('obverse', area, rotatedSrc, displayedWidth, displayedHeight)}
+              onAdjustmentChange={(field, value) =>
+                onAdjustmentChange("obverse", field, value)
+              }
+              onAutoAdjust={() => onAutoAdjust("obverse")}
+              onResetAdjustments={() => onResetAdjustments("obverse")}
+              onCrop={(area, rotatedSrc, displayedWidth, displayedHeight) =>
+                onCrop(
+                  "obverse",
+                  area,
+                  rotatedSrc,
+                  displayedWidth,
+                  displayedHeight
+                )
+              }
               onClear={handleClearObverse}
             />
           ) : (
             !hasPmgImages && (
               <Box style={{ flex: 1 }}>
-                <Text size="sm" fw={500} mb="xs">Obverse (Front)</Text>
+                <Text size="sm" fw={500} mb="xs">
+                  Obverse (Front)
+                </Text>
                 <Tabs defaultValue="upload">
                   <Tabs.List grow>
-                    <Tabs.Tab value="upload" leftSection={<IconUpload size={14} />}>
+                    <Tabs.Tab
+                      value="upload"
+                      leftSection={<IconUpload size={14} />}
+                    >
                       Upload
                     </Tabs.Tab>
                     <Tabs.Tab value="url" leftSection={<IconLink size={14} />}>
@@ -181,7 +237,9 @@ export function ImagesSection({
                       onChange={(e) => onObverseUrlChange(e.target.value)}
                       onBlur={(e) => onObverseUrlBlur(e.target.value)}
                       error={obverseUrlError}
-                      rightSection={loadingObverseUrl ? <Loader size={16} /> : undefined}
+                      rightSection={
+                        loadingObverseUrl ? <Loader size={16} /> : undefined
+                      }
                     />
                   </Tabs.Panel>
                 </Tabs>
@@ -194,22 +252,42 @@ export function ImagesSection({
               state={reverseState}
               isAdjusting={adjustingReverse}
               isProcessing={isProcessing}
-              onAdjustmentChange={(field, value) => onAdjustmentChange('reverse', field, value)}
-              onAutoAdjust={() => onAutoAdjust('reverse')}
-              onResetAdjustments={() => onResetAdjustments('reverse')}
-              onCrop={(area, rotatedSrc, displayedWidth, displayedHeight) => onCrop('reverse', area, rotatedSrc, displayedWidth, displayedHeight)}
+              onAdjustmentChange={(field, value) =>
+                onAdjustmentChange("reverse", field, value)
+              }
+              onAutoAdjust={() => onAutoAdjust("reverse")}
+              onResetAdjustments={() => onResetAdjustments("reverse")}
+              onCrop={(area, rotatedSrc, displayedWidth, displayedHeight) =>
+                onCrop(
+                  "reverse",
+                  area,
+                  rotatedSrc,
+                  displayedWidth,
+                  displayedHeight
+                )
+              }
               onClear={handleClearReverse}
             />
           ) : (
             !hasPmgImages && (
               <Box style={{ flex: 1 }}>
-                <Text size="sm" fw={500} mb="xs">Reverse (Back)</Text>
+                <Text size="sm" fw={500} mb="xs">
+                  Reverse (Back)
+                </Text>
                 <Tabs defaultValue="upload">
                   <Tabs.List grow>
-                    <Tabs.Tab value="upload" leftSection={<IconUpload size={14} />} size="xs">
+                    <Tabs.Tab
+                      value="upload"
+                      leftSection={<IconUpload size={14} />}
+                      size="xs"
+                    >
                       Upload
                     </Tabs.Tab>
-                    <Tabs.Tab value="url" leftSection={<IconLink size={14} />} size="xs">
+                    <Tabs.Tab
+                      value="url"
+                      leftSection={<IconLink size={14} />}
+                      size="xs"
+                    >
                       URL
                     </Tabs.Tab>
                   </Tabs.List>
@@ -231,7 +309,9 @@ export function ImagesSection({
                       onChange={(e) => onReverseUrlChange(e.target.value)}
                       onBlur={(e) => onReverseUrlBlur(e.target.value)}
                       error={reverseUrlError}
-                      rightSection={loadingReverseUrl ? <Loader size={16} /> : undefined}
+                      rightSection={
+                        loadingReverseUrl ? <Loader size={16} /> : undefined
+                      }
                     />
                   </Tabs.Panel>
                 </Tabs>
@@ -247,14 +327,16 @@ export function ImagesSection({
           <Group mt="md" align="flex-end" wrap="wrap">
             <Select
               label="Grade"
-              data={ALL_GRADES.map(g => ({ value: g, label: g === 'Not Listed' ? 'Not Listed' : g }))}
-              style={{ width: '100%', maxWidth: 200 }}
+              data={ALL_GRADES.map((g) => ({
+                value: g,
+                label: g === "Not Listed" ? "Not Listed" : g,
+              }))}
+              style={{ width: "100%", maxWidth: 200 }}
               disabled={isProcessing}
               value={grade}
-              onChange={(value) => onGradeChange(value || '')}
+              onChange={(value) => onGradeChange(value || "")}
               maxDropdownHeight={400}
             />
-
           </Group>
           <Group justify="center" mt="lg">
             <Stack gap="xs" align="center">
@@ -265,7 +347,11 @@ export function ImagesSection({
                   size="lg"
                   leftSection={<IconWand size={20} />}
                   onClick={onExtractData}
-                  disabled={isProcessing || (usage.aiExtractions.remaining === 0 && usage.aiExtractions.limit !== Infinity)}
+                  disabled={
+                    isProcessing ||
+                    (usage.aiExtractions.remaining === 0 &&
+                      usage.aiExtractions.limit !== Infinity)
+                  }
                 >
                   Extract Data
                 </Button>
@@ -274,8 +360,12 @@ export function ImagesSection({
                   withinPortal
                   visibleFrom="sm"
                 >
-                  <Box visibleFrom="sm" style={{ display: 'inline-block' }}>
-                    <ActionIcon variant="subtle" size="lg" style={{ cursor: 'help' }}>
+                  <Box visibleFrom="sm" style={{ display: "inline-block" }}>
+                    <ActionIcon
+                      variant="subtle"
+                      size="lg"
+                      style={{ cursor: "help" }}
+                    >
                       <IconInfoCircle size={20} style={{ opacity: 0.6 }} />
                     </ActionIcon>
                   </Box>
@@ -283,27 +373,35 @@ export function ImagesSection({
                 <Box hiddenFrom="sm">
                   <Popover width={300} position="top" withArrow shadow="md">
                     <Popover.Target>
-                      <ActionIcon variant="subtle" size="lg" style={{ cursor: 'help' }}>
+                      <ActionIcon
+                        variant="subtle"
+                        size="lg"
+                        style={{ cursor: "help" }}
+                      >
                         <IconInfoCircle size={20} style={{ opacity: 0.6 }} />
                       </ActionIcon>
                     </Popover.Target>
                     <Popover.Dropdown>
                       <Text size="sm">
-                        Uses AI to automatically extract banknote details (country, pick number, grade, EPQ, specimen, etc.) from the PMG holder images
+                        Uses AI to automatically extract banknote details
+                        (country, pick number, grade, EPQ, specimen, etc.) from
+                        the PMG holder images
                       </Text>
                     </Popover.Dropdown>
                   </Popover>
                 </Box>
               </Group>
               {usage.aiExtractions.limit !== Infinity && (
-                <Text size="xs" c={usage.aiExtractions.remaining === 0 ? 'red' : 'dimmed'}>
-                  {usage.aiExtractions.remaining} of {usage.aiExtractions.limit} extractions remaining this month
+                <Text
+                  size="xs"
+                  c={usage.aiExtractions.remaining === 0 ? "red" : "dimmed"}
+                >
+                  {usage.aiExtractions.remaining} of {usage.aiExtractions.limit}{" "}
+                  extractions remaining this month
                 </Text>
               )}
             </Stack>
           </Group>
-
-
         </>
       )}
 
@@ -318,34 +416,37 @@ export function ImagesSection({
                   fullWidth
                   rightSection={<IconChevronDown size={16} />}
                   leftSection={
-                    activeTab === 'pmg' ? <IconSparkles size={16} /> :
-                      activeTab === 'upload' ? <IconUpload size={16} /> :
-                        <IconLink size={16} />
+                    activeTab === "pmg" ? (
+                      <IconSparkles size={16} />
+                    ) : activeTab === "upload" ? (
+                      <IconUpload size={16} />
+                    ) : (
+                      <IconLink size={16} />
+                    )
                   }
                 >
-                  {activeTab === 'pmg' ? 'Fetch from PMG' :
-                    activeTab === 'upload' ? 'Upload Images' :
-                      'Enter Image URLs Manually'}
+                  {activeTab === "pmg"
+                    ? "Fetch from PMG"
+                    : activeTab === "upload"
+                      ? "Upload Images"
+                      : "Enter Image URLs Manually"}
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
-                <Menu.Item
-                  onClick={() => setActiveTab('pmg')}
-
-                >
+                <Menu.Item onClick={() => setActiveTab("pmg")}>
                   <IconSparkles size={16} />
                   Fetch from PMawdadawdG
                 </Menu.Item>
                 <Menu.Divider />
                 <Menu.Item
                   leftSection={<IconUpload size={16} />}
-                  onClick={() => setActiveTab('upload')}
+                  onClick={() => setActiveTab("upload")}
                 >
                   Upload Images
                 </Menu.Item>
                 <Menu.Item
                   leftSection={<IconLink size={16} />}
-                  onClick={() => setActiveTab('url')}
+                  onClick={() => setActiveTab("url")}
                 >
                   Enter Image URLs Manually
                 </Menu.Item>
@@ -354,7 +455,11 @@ export function ImagesSection({
           </Box>
 
           {/* Desktop: Tabs */}
-          <Tabs value={activeTab} onChange={(value) => value && setActiveTab(value)} visibleFrom="sm">
+          <Tabs
+            value={activeTab}
+            onChange={(value) => value && setActiveTab(value)}
+            visibleFrom="sm"
+          >
             <Tabs.List grow>
               <Tabs.Tab value="pmg" leftSection={<IconSparkles size={16} />}>
                 Fetch from PMG
@@ -379,10 +484,13 @@ export function ImagesSection({
                   />
                   <Select
                     label="Grade"
-                    data={ALL_GRADES.map(g => ({ value: g, label: g === 'Not Listed' ? 'Not Listed' : g }))}
+                    data={ALL_GRADES.map((g) => ({
+                      value: g,
+                      label: g === "Not Listed" ? "Not Listed" : g,
+                    }))}
                     disabled={isProcessing}
                     value={grade}
-                    onChange={(value) => onGradeChange(value || '')}
+                    onChange={(value) => onGradeChange(value || "")}
                     maxDropdownHeight={400}
                   />
                 </SimpleGrid>
@@ -392,14 +500,23 @@ export function ImagesSection({
                       variant="light"
                       leftSection={<IconDownload size={16} />}
                       onClick={onFetchImages}
-                      disabled={isProcessing || (usage.pmgFetches.remaining === 0 && usage.pmgFetches.limit !== Infinity)}
+                      disabled={
+                        isProcessing ||
+                        (usage.pmgFetches.remaining === 0 &&
+                          usage.pmgFetches.limit !== Infinity)
+                      }
                       fullWidth
                     >
                       Fetch PMG Images
                     </Button>
                     {usage.pmgFetches.limit !== Infinity && (
-                      <Text size="xs" c={usage.pmgFetches.remaining === 0 ? 'red' : 'dimmed'} mt={4}>
-                        {usage.pmgFetches.remaining} of {usage.pmgFetches.limit} remaining this month
+                      <Text
+                        size="xs"
+                        c={usage.pmgFetches.remaining === 0 ? "red" : "dimmed"}
+                        mt={4}
+                      >
+                        {usage.pmgFetches.remaining} of {usage.pmgFetches.limit}{" "}
+                        remaining this month
                       </Text>
                     )}
                   </Box>
@@ -408,8 +525,12 @@ export function ImagesSection({
                     withinPortal
                     visibleFrom="sm"
                   >
-                    <Box visibleFrom="sm" style={{ display: 'inline-block' }}>
-                      <ActionIcon variant="subtle" size="md" style={{ cursor: 'help' }}>
+                    <Box visibleFrom="sm" style={{ display: "inline-block" }}>
+                      <ActionIcon
+                        variant="subtle"
+                        size="md"
+                        style={{ cursor: "help" }}
+                      >
                         <IconInfoCircle size={18} style={{ opacity: 0.6 }} />
                       </ActionIcon>
                     </Box>
@@ -417,13 +538,19 @@ export function ImagesSection({
                   <Box hiddenFrom="sm">
                     <Popover width={300} position="top" withArrow shadow="md">
                       <Popover.Target>
-                        <ActionIcon variant="subtle" size="md" style={{ cursor: 'help' }}>
+                        <ActionIcon
+                          variant="subtle"
+                          size="md"
+                          style={{ cursor: "help" }}
+                        >
                           <IconInfoCircle size={18} style={{ opacity: 0.6 }} />
                         </ActionIcon>
                       </Popover.Target>
                       <Popover.Dropdown>
                         <Text size="sm">
-                          Fetches high-resolution images directly from PMG's website using the certification number and grade, then uses AI to extract banknote details
+                          Fetches high-resolution images directly from PMG's
+                          website using the certification number and grade, then
+                          uses AI to extract banknote details
                         </Text>
                       </Popover.Dropdown>
                     </Popover>
@@ -463,7 +590,9 @@ export function ImagesSection({
                   onChange={(e) => onObverseUrlChange(e.target.value)}
                   onBlur={(e) => onObverseUrlBlur(e.target.value)}
                   error={obverseUrlError}
-                  rightSection={loadingObverseUrl ? <Loader size={16} /> : undefined}
+                  rightSection={
+                    loadingObverseUrl ? <Loader size={16} /> : undefined
+                  }
                 />
                 <TextInput
                   label="Reverse URL"
@@ -473,14 +602,16 @@ export function ImagesSection({
                   onChange={(e) => onReverseUrlChange(e.target.value)}
                   onBlur={(e) => onReverseUrlBlur(e.target.value)}
                   error={reverseUrlError}
-                  rightSection={loadingReverseUrl ? <Loader size={16} /> : undefined}
+                  rightSection={
+                    loadingReverseUrl ? <Loader size={16} /> : undefined
+                  }
                 />
               </SimpleGrid>
             </Tabs.Panel>
           </Tabs>
 
           {/* Mobile: Content Panels */}
-          {activeTab === 'pmg' && (
+          {activeTab === "pmg" && (
             <Stack gap="md" mt="md" hiddenFrom="sm">
               <TextInput
                 label="PMG Cert #"
@@ -491,46 +622,65 @@ export function ImagesSection({
               />
               <Select
                 label="Grade"
-                data={ALL_GRADES.map(g => ({ value: g, label: g === 'Not Listed' ? 'Not Listed' : g }))}
+                data={ALL_GRADES.map((g) => ({
+                  value: g,
+                  label: g === "Not Listed" ? "Not Listed" : g,
+                }))}
                 disabled={isProcessing}
                 value={grade}
-                onChange={(value) => onGradeChange(value || '')}
+                onChange={(value) => onGradeChange(value || "")}
                 maxDropdownHeight={400}
               />
-              <Box style={{ width: '100%' }}>
+              <Box style={{ width: "100%" }}>
                 <Button
                   variant="light"
                   leftSection={<IconDownload size={16} />}
                   onClick={onFetchImages}
-                  disabled={isProcessing || (usage.pmgFetches.remaining === 0 && usage.pmgFetches.limit !== Infinity)}
+                  disabled={
+                    isProcessing ||
+                    (usage.pmgFetches.remaining === 0 &&
+                      usage.pmgFetches.limit !== Infinity)
+                  }
                   fullWidth
                 >
                   Fetch PMG Images
                 </Button>
                 {usage.pmgFetches.limit !== Infinity && (
-                  <Text size="xs" c={usage.pmgFetches.remaining === 0 ? 'red' : 'dimmed'} mt={4} ta="center">
-                    {usage.pmgFetches.remaining} of {usage.pmgFetches.limit} remaining this month
+                  <Text
+                    size="xs"
+                    c={usage.pmgFetches.remaining === 0 ? "red" : "dimmed"}
+                    mt={4}
+                    ta="center"
+                  >
+                    {usage.pmgFetches.remaining} of {usage.pmgFetches.limit}{" "}
+                    remaining this month
                   </Text>
                 )}
               </Box>
               <Popover width={300} position="top" withArrow shadow="md">
                 <Popover.Target>
                   <Group justify="center">
-                    <ActionIcon variant="subtle" size="md" style={{ cursor: 'help' }}>
+                    <ActionIcon
+                      variant="subtle"
+                      size="md"
+                      style={{ cursor: "help" }}
+                    >
                       <IconInfoCircle size={18} style={{ opacity: 0.6 }} />
                     </ActionIcon>
                   </Group>
                 </Popover.Target>
                 <Popover.Dropdown>
                   <Text size="sm">
-                    Fetches high-resolution images directly from PMG's website using the certification number and grade, then uses AI to extract banknote details
+                    Fetches high-resolution images directly from PMG's website
+                    using the certification number and grade, then uses AI to
+                    extract banknote details
                   </Text>
                 </Popover.Dropdown>
               </Popover>
             </Stack>
           )}
 
-          {activeTab === 'upload' && (
+          {activeTab === "upload" && (
             <Stack gap="md" mt="md" hiddenFrom="sm">
               <FileUpload
                 label="Obverse (Front)"
@@ -551,7 +701,7 @@ export function ImagesSection({
             </Stack>
           )}
 
-          {activeTab === 'url' && (
+          {activeTab === "url" && (
             <Stack gap="md" mt="md" hiddenFrom="sm">
               <TextInput
                 label="Obverse URL"
@@ -561,7 +711,9 @@ export function ImagesSection({
                 onChange={(e) => onObverseUrlChange(e.target.value)}
                 onBlur={(e) => onObverseUrlBlur(e.target.value)}
                 error={obverseUrlError}
-                rightSection={loadingObverseUrl ? <Loader size={16} /> : undefined}
+                rightSection={
+                  loadingObverseUrl ? <Loader size={16} /> : undefined
+                }
               />
               <TextInput
                 label="Reverse URL"
@@ -571,7 +723,9 @@ export function ImagesSection({
                 onChange={(e) => onReverseUrlChange(e.target.value)}
                 onBlur={(e) => onReverseUrlBlur(e.target.value)}
                 error={reverseUrlError}
-                rightSection={loadingReverseUrl ? <Loader size={16} /> : undefined}
+                rightSection={
+                  loadingReverseUrl ? <Loader size={16} /> : undefined
+                }
               />
             </Stack>
           )}
@@ -580,4 +734,3 @@ export function ImagesSection({
     </Paper>
   );
 }
-

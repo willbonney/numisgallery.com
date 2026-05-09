@@ -7,6 +7,7 @@ import {
   fetchPMGImages as fetchPMGImagesHelper,
   type ImageState,
 } from "../components/BanknoteForm/BanknoteForm.helpers";
+import { useLoading } from "../contexts/LoadingContext";
 import type { Banknote } from "../types/banknote";
 import { dataUrlToFile, getImageUrl } from "../utils/fileHelpers";
 import { DEFAULT_ADJUSTMENTS } from "../utils/imageProcessing";
@@ -132,6 +133,7 @@ export function useBanknoteImages({
   const [reverseUrlError, setReverseUrlError] = useState<string | null>(null);
   const [loadingObverseUrl, setLoadingObverseUrl] = useState(false);
   const [loadingReverseUrl, setLoadingReverseUrl] = useState(false);
+  const { setLoading } = useLoading();
 
   // Automatically proxy images when editing to enable adjustments
   useEffect(() => {
@@ -220,15 +222,19 @@ export function useBanknoteImages({
     });
   };
 
-  const fetchPMGImages = useCallback((cert: string, grade: string) => {
-    fetchPMGImagesHelper(
-      cert,
-      grade,
-      setObverseState,
-      setReverseState,
-      setFetchingImages
-    );
-  }, []);
+  const fetchPMGImages = useCallback(
+    (cert: string, grade: string) => {
+      fetchPMGImagesHelper(
+        cert,
+        grade,
+        setObverseState,
+        setReverseState,
+        setFetchingImages,
+        setLoading
+      );
+    },
+    [setLoading]
+  );
 
   const clearImages = useCallback(() => {
     setObverseFile(null);
