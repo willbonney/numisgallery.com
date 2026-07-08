@@ -1,0 +1,70 @@
+.timeline {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  max-width: 680px;
+  margin-inline: auto;
+}
+
+.stepCard {
+  transition: transform 0.2s ease, box-shadow 0.2s ease,
+    border-color 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.stepCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(74, 138, 74, 0.12);
+  border-color: var(--mantine-color-sage-3);
+}
+
+.stepIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  min-width: 96px;
+  align-self: stretch;
+  flex-shrink: 0;
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-sage-light);
+  color: var(--mantine-color-sage-light-color);
+}
+
+.connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--mantine-color-sage-5);
+  line-height: 0;
+}
+
+.connectorLine {
+  width: 2px;
+  height: 12px;
+  background: var(--mantine-color-sage-4);
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.connectorArrow {
+  display: block;
+  margin-bottom: -2px;
+}
+
+.titleHighlight,
+.titleLink {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.12em;
+}
+
+.titleLink {
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.titleLink:hover {
+  opacity: 0.85;
+}
