@@ -86,9 +86,9 @@ export async function checkStorageLimit(newFileSize: number): Promise<{
     };
   } catch (error) {
     console.error('Failed to check storage limit:', error);
-    // Fail open - allow upload if we can't check
+    // Fail closed — do not allow upload if we cannot verify limits
     return {
-      allowed: true,
+      allowed: false,
       currentSize: 0,
       newSize: newFileSize,
       limit: 250 * 1024 * 1024,

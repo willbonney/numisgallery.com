@@ -15,6 +15,19 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
+// Allowed Stripe price IDs (never trust arbitrary client priceId)
+const STRIPE_PRICE_PRO = process.env.STRIPE_PRICE_PRO;
+const STRIPE_PRICE_PRO_YEARLY = process.env.STRIPE_PRICE_PRO_YEARLY;
+
+const ALLOWED_FRONTEND_ORIGINS = [
+  FRONTEND_URL,
+  "http://localhost:5173",
+  "http://localhost:4173",
+  "https://numisgallery.com",
+  "https://www.numisgallery.com",
+  "https://numisgallery.pages.dev",
+].filter(Boolean);
+
 // Initialize Stripe
 const stripe = new Stripe(
   process.env.STRIPE_SECRET_KEY || "dummy_key_for_webhook_verification",
@@ -34,23 +47,128 @@ if (!STRIPE_WEBHOOK_SECRET) {
 // HELPER FUNCTIONS
 // ============================================================================
 
-// Get admin auth token
+/** PocketBase superuser token (PB 0.23+ uses _superusers, not /api/admins) */
 async function getAdminToken() {
-  const response = await fetch(`${PB_URL}/api/admins/auth-with-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      identity: ADMIN_EMAIL,
-      password: ADMIN_PASSWORD,
-    }),
-  });
+  const attempts = [
+    `${PB_URL}/api/collections/_superusers/auth-with-password`,
+    `${PB_URL}/api/admins/auth-with-password`,
+  ];
 
-  if (!response.ok) {
-    throw new Error("Failed to authenticate as admin");
+  let lastError;
+  for (const url of attempts) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        identity: ADMIN_EMAIL,
+        password: ADMIN_PASSWORD,
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.token;
+    }
+
+    lastError = await response.text().catch(() => response.statusText);
   }
 
-  const data = await response.json();
-  return data.token;
+  throw new Error(`Failed to authenticate as admin: ${lastError}`);
+}
+
+/**
+ * Validate PocketBase user JWT and attach req.user
+ */
+async function requireUserAuth(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const token = authHeader.slice("Bearer ".length).trim();
+    if (!token) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const response = await fetch(
+      `${PB_URL}/api/collections/users/auth-refresh`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    if (!response.ok) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const data = await response.json();
+    req.user = data.record;
+    req.userToken = token;
+    next();
+  } catch (error) {
+    console.error("Auth middleware error:", error);
+    return res.status(401).json({ error: "Authentication failed" });
+  }
+}
+
+function isValidPocketBaseId(id) {
+  return typeof id === "string" && /^[a-z0-9]{15}$/i.test(id);
+}
+
+function isAllowedReturnUrl(url) {
+  if (!url) return true;
+  try {
+    const parsed = new URL(url);
+    return ALLOWED_FRONTEND_ORIGINS.some((origin) => {
+      try {
+        return parsed.origin === new URL(origin).origin;
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    return false;
+  }
+}
+
+function getAllowedPriceIds() {
+  return [STRIPE_PRICE_PRO, STRIPE_PRICE_PRO_YEARLY].filter(Boolean);
+}
+
+function resolvePriceId(billingPeriod) {
+  if (billingPeriod === "yearly" && STRIPE_PRICE_PRO_YEARLY) {
+    return STRIPE_PRICE_PRO_YEARLY;
+  }
+  return STRIPE_PRICE_PRO;
+}
+
+// Live schema uses paddle* field names (legacy rename); support both when reading.
+function getCustomerId(sub) {
+  return sub?.paddleCustomerId || sub?.stripeCustomerId || null;
+}
+
+function getSubscriptionId(sub) {
+  return sub?.paddleSubscriptionId || sub?.stripeSubscriptionId || null;
+}
+
+function subscriptionWriteFields(data) {
+  // Write both naming conventions so schema drift does not break billing.
+  return {
+    userId: data.userId,
+    tier: data.tier,
+    status: data.status,
+    currentPeriodEnd: data.currentPeriodEnd,
+    cancelAtPeriodEnd: data.cancelAtPeriodEnd,
+    paddleCustomerId: data.customerId,
+    paddleSubscriptionId: data.subscriptionId,
+    stripeCustomerId: data.customerId,
+    stripeSubscriptionId: data.subscriptionId,
+  };
 }
 
 // Map Stripe subscription status to our status
@@ -63,73 +181,94 @@ function mapStripeStatus(stripeStatus) {
     incomplete: "incomplete",
     incomplete_expired: "incomplete_expired",
   };
-  return statusMap[stripeStatus] || "active";
+  // Unknown statuses should not default to active
+  return statusMap[stripeStatus] || "past_due";
 }
 
 // Map Stripe price ID to tier
 function mapPriceToTier(priceId) {
-  const proPriceId = process.env.STRIPE_PRICE_PRO;
-
-  if (priceId === proPriceId) {
+  const allowed = getAllowedPriceIds();
+  if (priceId && allowed.includes(priceId)) {
     return "pro";
   }
   return "free";
 }
 
-function isValidPocketBaseId(id) {
-  return /^[a-z0-9]{15}$/i.test(id);
+async function findSubscriptionByUserId(token, userId) {
+  const response = await fetch(
+    `${PB_URL}/api/collections/subscriptions/records?filter=${encodeURIComponent(
+      `userId="${userId}"`,
+    )}&perPage=1`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+
+  if (!response.ok) return null;
+  const data = await response.json();
+  return data.items?.[0] || null;
+}
+
+async function findSubscriptionByCustomerId(token, customerId) {
+  if (!customerId) return null;
+
+  // Try both field names used across schema migrations
+  for (const field of ["paddleCustomerId", "stripeCustomerId"]) {
+    const response = await fetch(
+      `${PB_URL}/api/collections/subscriptions/records?filter=${encodeURIComponent(
+        `${field}="${customerId}"`,
+      )}&perPage=1`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.items?.[0]) return data.items[0];
+    }
+  }
+  return null;
 }
 
 // Reset usage period when subscription renews
 async function resetUsagePeriod(token, stripeData) {
   try {
-    const userId = stripeData.metadata?.userId || stripeData.customer;
+    let userId = stripeData.metadata?.userId;
 
-    if (!userId) {
+    // Invoice objects often only have customer (cus_...), not PB userId
+    if (!userId || !isValidPocketBaseId(userId)) {
+      const customerId = stripeData.customer;
+      if (customerId) {
+        const existing = await findSubscriptionByCustomerId(token, customerId);
+        if (existing) {
+          userId = existing.userId;
+        }
+      }
+    }
+
+    if (!userId || !isValidPocketBaseId(userId)) {
+      console.warn(
+        "resetUsagePeriod: could not resolve PocketBase userId; skipping",
+      );
       return;
     }
 
-    if (!isValidPocketBaseId(userId)) {
-      throw new Error("Invalid user ID format");
-    }
+    const subscription = await findSubscriptionByUserId(token, userId);
+    if (!subscription) return;
 
-    // Find existing subscription
-    const listResponse = await fetch(
-      `${PB_URL}/api/collections/subscriptions/records?filter=userId="${userId}"`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    );
-
-    if (!listResponse.ok) {
-      return;
-    }
-
-    const listData = await listResponse.json();
-    const existing = listData.items || [];
-
-    if (existing.length === 0) {
-      return;
-    }
-
-    const subscription = existing[0];
     const now = new Date();
     const periodEnd = stripeData.current_period_end
       ? new Date(stripeData.current_period_end * 1000)
       : new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
 
-    // Only reset if we're starting a new period
     const currentPeriodEnd = subscription.usagePeriodEnd
       ? new Date(subscription.usagePeriodEnd)
       : null;
     if (currentPeriodEnd && now <= currentPeriodEnd) {
-      // Still in current period, don't reset
       return;
     }
 
-    // Reset usage for new period
     await fetch(
       `${PB_URL}/api/collections/subscriptions/records/${subscription.id}`,
       {
@@ -153,39 +292,13 @@ async function resetUsagePeriod(token, stripeData) {
   }
 }
 
-// Find subscription by Stripe customer ID
-async function findSubscriptionByStripeCustomerId(token, stripeCustomerId) {
-  try {
-    const response = await fetch(
-      `${PB_URL}/api/collections/subscriptions/records?filter=stripeCustomerId="${stripeCustomerId}"`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    );
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = await response.json();
-    return data.items?.[0] || null;
-  } catch (error) {
-    console.error("Error finding subscription by Stripe customer ID:", error);
-    return null;
-  }
-}
-
 async function updateSubscription(token, stripeData) {
   try {
-    // Try to get userId from metadata first
     let userId = stripeData.metadata?.userId;
     let existingSubscription = null;
 
-    // If no userId in metadata, try to find by Stripe customer ID
     if (!userId && stripeData.customer) {
-      existingSubscription = await findSubscriptionByStripeCustomerId(
+      existingSubscription = await findSubscriptionByCustomerId(
         token,
         stripeData.customer,
       );
@@ -210,67 +323,82 @@ async function updateSubscription(token, stripeData) {
       return;
     }
 
-    // Find existing subscription by userId if we haven't already
     if (!existingSubscription) {
-      const listResponse = await fetch(
-        `${PB_URL}/api/collections/subscriptions/records?filter=userId="${userId}"`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      if (listResponse.ok) {
-        const listData = await listResponse.json();
-        existingSubscription = listData.items?.[0] || null;
-      }
+      existingSubscription = await findSubscriptionByUserId(token, userId);
     }
 
-    const existing = existingSubscription ? [existingSubscription] : [];
-
-    // Get the tier from subscription items
-    // If subscription is canceled or status is canceled, set tier to free
     const isCanceled = stripeData.status === "canceled";
     const tier = isCanceled
       ? "free"
       : mapPriceToTier(stripeData.items?.data?.[0]?.price?.id);
 
-    const subscriptionData = {
-      userId: userId,
-      tier: tier,
-      stripeSubscriptionId: isCanceled ? null : stripeData.id,
-      stripeCustomerId: stripeData.customer,
+    const subscriptionData = subscriptionWriteFields({
+      userId,
+      tier,
+      customerId: stripeData.customer || null,
+      subscriptionId: isCanceled ? null : stripeData.id,
       status: mapStripeStatus(stripeData.status),
       currentPeriodEnd: stripeData.current_period_end
         ? new Date(stripeData.current_period_end * 1000).toISOString()
         : null,
       cancelAtPeriodEnd: stripeData.cancel_at_period_end || false,
-    };
+    });
+
+    // Only include keys that exist / are known — drop undefined stripe* if schema rejects
+    const payload = { ...subscriptionData };
+    // Remove null-undefined noise
+    Object.keys(payload).forEach((k) => {
+      if (payload[k] === undefined) delete payload[k];
+    });
 
     console.log(
-      `📝 Subscription update for user ${userId}: tier=${tier}, status=${subscriptionData.status}, cancelAtPeriodEnd=${subscriptionData.cancelAtPeriodEnd}`,
+      `📝 Subscription update for user ${userId}: tier=${tier}, status=${payload.status}, cancelAtPeriodEnd=${payload.cancelAtPeriodEnd}`,
     );
 
-    if (existing.length > 0) {
+    if (existingSubscription) {
+      // Prefer writing only fields that exist on the collection
+      const safePayload = {
+        userId,
+        tier,
+        status: payload.status,
+        currentPeriodEnd: payload.currentPeriodEnd,
+        cancelAtPeriodEnd: payload.cancelAtPeriodEnd,
+        paddleCustomerId: payload.paddleCustomerId,
+        paddleSubscriptionId: payload.paddleSubscriptionId,
+      };
+
       const updateResponse = await fetch(
-        `${PB_URL}/api/collections/subscriptions/records/${existing[0].id}`,
+        `${PB_URL}/api/collections/subscriptions/records/${existingSubscription.id}`,
         {
           method: "PATCH",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(subscriptionData),
+          body: JSON.stringify(safePayload),
         },
       );
 
       if (!updateResponse.ok) {
-        throw new Error("Failed to update subscription");
+        const errText = await updateResponse.text();
+        throw new Error(`Failed to update subscription: ${errText}`);
       }
 
       console.log(`✅ Updated subscription for user ${userId}`);
     } else {
+      const createPayload = {
+        userId,
+        tier,
+        status: payload.status,
+        currentPeriodEnd: payload.currentPeriodEnd,
+        cancelAtPeriodEnd: payload.cancelAtPeriodEnd,
+        paddleCustomerId: payload.paddleCustomerId,
+        paddleSubscriptionId: payload.paddleSubscriptionId,
+        pmgFetchesUsed: 0,
+        aiExtractionsUsed: 0,
+        totalStorageUsed: 0,
+      };
+
       const createResponse = await fetch(
         `${PB_URL}/api/collections/subscriptions/records`,
         {
@@ -279,12 +407,13 @@ async function updateSubscription(token, stripeData) {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(subscriptionData),
+          body: JSON.stringify(createPayload),
         },
       );
 
       if (!createResponse.ok) {
-        throw new Error("Failed to create subscription");
+        const errText = await createResponse.text();
+        throw new Error(`Failed to create subscription: ${errText}`);
       }
 
       console.log(`✅ Created subscription for user ${userId}`);
@@ -300,7 +429,6 @@ async function updateSubscription(token, stripeData) {
 // ============================================================================
 
 async function handleStripeWebhook(req, res) {
-  // Verify webhook signature to ensure the request is from Stripe
   const signature = req.headers["stripe-signature"];
 
   if (!signature) {
@@ -316,8 +444,6 @@ async function handleStripeWebhook(req, res) {
   let event;
 
   try {
-    // Verify the webhook signature using Stripe's library
-    // This ensures the webhook actually came from Stripe and wasn't forged
     event = stripe.webhooks.constructEvent(
       req.body,
       signature,
@@ -330,7 +456,6 @@ async function handleStripeWebhook(req, res) {
       .json({ error: `Webhook signature verification failed: ${err.message}` });
   }
 
-  // Signature verified - process the event
   const eventType = event.type;
   console.log(`✅ Verified Stripe webhook: ${eventType}`);
 
@@ -338,17 +463,13 @@ async function handleStripeWebhook(req, res) {
     const token = await getAdminToken();
 
     switch (eventType) {
-      case "checkout.session.completed":
-        // Handle checkout session completion - this contains the client_reference_id (userId)
+      case "checkout.session.completed": {
         const session = event.data.object;
         console.log(
           `✅ Checkout session completed for customer ${session.customer}, userId: ${session.client_reference_id}`,
         );
 
-        // If this is a subscription checkout, the subscription webhook will follow
-        // But we can store the customer-user mapping here
         if (session.subscription && session.client_reference_id) {
-          // Update or create subscription with the proper userId
           const subscriptionData = await stripe.subscriptions.retrieve(
             session.subscription,
           );
@@ -361,6 +482,7 @@ async function handleStripeWebhook(req, res) {
           });
         }
         break;
+      }
 
       case "customer.subscription.created":
         console.log(
@@ -370,19 +492,16 @@ async function handleStripeWebhook(req, res) {
         break;
 
       case "customer.subscription.updated":
-        // Log if this is a cancellation scheduled for period end
         if (event.data.object.cancel_at_period_end) {
           console.log(
             `⏳ Subscription scheduled for cancellation at period end for customer ${event.data.object.customer}`,
           );
         }
         await updateSubscription(token, event.data.object);
-        // Reset usage when subscription renews (new billing period)
         await resetUsagePeriod(token, event.data.object);
         break;
 
       case "customer.subscription.deleted":
-        // Subscription fully deleted - downgrade to free tier
         console.log(
           `🔻 Subscription deleted for customer ${event.data.object.customer} - downgrading to free`,
         );
@@ -393,19 +512,43 @@ async function handleStripeWebhook(req, res) {
         break;
 
       case "invoice.payment_succeeded":
-        // Payment successful - reset usage for new billing period
         if (event.data.object.subscription) {
-          await resetUsagePeriod(token, event.data.object);
+          // Attach metadata userId if we can resolve the subscription
+          let stripeSub = null;
+          try {
+            stripeSub = await stripe.subscriptions.retrieve(
+              event.data.object.subscription,
+            );
+          } catch (e) {
+            console.warn("Could not retrieve subscription for invoice:", e.message);
+          }
+          await resetUsagePeriod(token, {
+            ...event.data.object,
+            metadata: stripeSub?.metadata || event.data.object.metadata,
+            current_period_end:
+              stripeSub?.current_period_end ||
+              event.data.object.lines?.data?.[0]?.period?.end,
+          });
         }
         break;
 
       case "invoice.payment_failed":
-        // Payment failed, mark as past_due
         if (event.data.object.subscription) {
-          // Fetch subscription details to update status
           console.log(
             `Payment failed for subscription: ${event.data.object.subscription}`,
           );
+          try {
+            const stripeSub = await stripe.subscriptions.retrieve(
+              event.data.object.subscription,
+            );
+            await updateSubscription(token, {
+              ...stripeSub,
+              status: "past_due",
+            });
+          } catch (e) {
+            console.error("Failed to mark subscription past_due:", e.message);
+            throw e;
+          }
         }
         break;
 
@@ -422,14 +565,25 @@ async function handleStripeWebhook(req, res) {
 
 async function handleCreatePortalSession(req, res) {
   try {
-    const { customerId, returnUrl } = req.body;
-
-    if (!customerId) {
-      return res.status(400).json({ error: "Customer ID is required" });
-    }
-
     if (!process.env.STRIPE_SECRET_KEY) {
       return res.status(500).json({ error: "Stripe not configured" });
+    }
+
+    const userId = req.user.id;
+    const { returnUrl } = req.body || {};
+
+    if (returnUrl && !isAllowedReturnUrl(returnUrl)) {
+      return res.status(400).json({ error: "Invalid returnUrl" });
+    }
+
+    const adminToken = await getAdminToken();
+    const subscription = await findSubscriptionByUserId(adminToken, userId);
+    const customerId = getCustomerId(subscription);
+
+    if (!customerId) {
+      return res.status(400).json({
+        error: "No billing customer found for this account",
+      });
     }
 
     const portalSession = await stripe.billingPortal.sessions.create({
@@ -444,78 +598,60 @@ async function handleCreatePortalSession(req, res) {
   }
 }
 
-// ============================================================================
-// RATE LIMITERS
-// ============================================================================
-
-const webhookLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 100, // limit each IP to 100 requests per minute
-  message: { error: "Too many requests" },
-});
-
-const portalLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 10, // limit each IP to 10 portal requests per minute
-  message: { error: "Too many requests" },
-});
-
-// ============================================================================
-// MIDDLEWARE & ROUTES
-// ============================================================================
-
-// Enable CORS for frontend requests
-app.use(
-  cors({
-    origin: [FRONTEND_URL, "http://localhost:5173"],
-    methods: ["POST", "GET"],
-    credentials: true,
-  }),
-);
-
-// IMPORTANT: Register stripe-webhook route BEFORE express.json() middleware
-// to preserve the raw body for Stripe signature verification
-app.post(
-  "/stripe-webhook",
-  express.raw({ type: "application/json" }),
-  webhookLimiter,
-  handleStripeWebhook,
-);
-
-// Use JSON body parser for all other routes (must be AFTER webhook route)
-app.use(express.json());
-
-// Create Stripe billing portal session for subscription management
-app.post("/create-portal-session", portalLimiter, handleCreatePortalSession);
-
-// Create Stripe checkout session for subscription upgrade
-app.post("/create-checkout-session", portalLimiter, async (req, res) => {
+async function handleCreateCheckoutSession(req, res) {
   try {
-    const { priceId, customerEmail, userId, successUrl, cancelUrl } = req.body;
-
-    if (!priceId || !customerEmail || !userId) {
-      return res.status(400).json({
-        error: "priceId, customerEmail, and userId are required",
-      });
-    }
-
     if (!process.env.STRIPE_SECRET_KEY) {
       return res.status(500).json({ error: "Stripe not configured" });
     }
 
-    // Check if customer already exists with this email
-    const existingCustomers = await stripe.customers.list({
-      email: customerEmail,
-      limit: 1,
-    });
+    const userId = req.user.id;
+    const customerEmail = req.user.email;
+    const { billingPeriod, successUrl, cancelUrl } = req.body || {};
 
-    let customerId;
-    if (existingCustomers.data.length > 0) {
-      customerId = existingCustomers.data[0].id;
-      // Update customer metadata with userId
-      await stripe.customers.update(customerId, {
-        metadata: { userId },
+    if (!customerEmail) {
+      return res.status(400).json({ error: "User email is required" });
+    }
+
+    if (!isValidPocketBaseId(userId)) {
+      return res.status(400).json({ error: "Invalid user" });
+    }
+
+    // Server resolves price — never trust client priceId
+    const priceId = resolvePriceId(billingPeriod);
+    if (!priceId) {
+      return res.status(500).json({
+        error: "STRIPE_PRICE_PRO is not configured on the server",
       });
+    }
+
+    const allowed = getAllowedPriceIds();
+    if (!allowed.includes(priceId)) {
+      return res.status(400).json({ error: "Invalid price" });
+    }
+
+    if (successUrl && !isAllowedReturnUrl(successUrl)) {
+      return res.status(400).json({ error: "Invalid successUrl" });
+    }
+    if (cancelUrl && !isAllowedReturnUrl(cancelUrl)) {
+      return res.status(400).json({ error: "Invalid cancelUrl" });
+    }
+
+    // Prefer existing Stripe customer linked to this user's subscription
+    const adminToken = await getAdminToken();
+    const existingSub = await findSubscriptionByUserId(adminToken, userId);
+    let customerId = getCustomerId(existingSub);
+
+    if (!customerId) {
+      const existingCustomers = await stripe.customers.list({
+        email: customerEmail,
+        limit: 1,
+      });
+      if (existingCustomers.data.length > 0) {
+        customerId = existingCustomers.data[0].id;
+        await stripe.customers.update(customerId, {
+          metadata: { userId },
+        });
+      }
     }
 
     const sessionParams = {
@@ -537,6 +673,9 @@ app.post("/create-checkout-session", portalLimiter, async (req, res) => {
           userId: userId,
         },
       },
+      metadata: {
+        userId: userId,
+      },
     };
 
     const session = await stripe.checkout.sessions.create(sessionParams);
@@ -550,15 +689,63 @@ app.post("/create-checkout-session", portalLimiter, async (req, res) => {
     console.error("Error creating checkout session:", error);
     res.status(500).json({ error: "Failed to create checkout session" });
   }
+}
+
+// ============================================================================
+// RATE LIMITERS
+// ============================================================================
+
+const webhookLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 100,
+  message: { error: "Too many requests" },
 });
+
+const portalLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 10,
+  message: { error: "Too many requests" },
+});
+
+// ============================================================================
+// MIDDLEWARE & ROUTES
+// ============================================================================
+
+app.use(
+  cors({
+    origin: ALLOWED_FRONTEND_ORIGINS,
+    methods: ["POST", "GET"],
+    credentials: true,
+  }),
+);
+
+// Stripe webhook BEFORE express.json() for raw body signature verification
+app.post(
+  "/stripe-webhook",
+  express.raw({ type: "application/json" }),
+  webhookLimiter,
+  handleStripeWebhook,
+);
+
+app.use(express.json());
+
+app.post(
+  "/create-portal-session",
+  portalLimiter,
+  requireUserAuth,
+  handleCreatePortalSession,
+);
+
+app.post(
+  "/create-checkout-session",
+  portalLimiter,
+  requireUserAuth,
+  handleCreateCheckoutSession,
+);
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok", service: "webhooks" });
 });
-
-// ============================================================================
-// SERVER STARTUP
-// ============================================================================
 
 app.listen(PORT, () => {
   console.log(`
@@ -567,8 +754,8 @@ app.listen(PORT, () => {
 ║  Running on http://localhost:${PORT}                  ║
 ║                                                   ║
 ║  POST /stripe-webhook (signature verified)        ║
-║  POST /create-portal-session                      ║
-║  POST /create-checkout-session                    ║
+║  POST /create-portal-session (auth required)      ║
+║  POST /create-checkout-session (auth required)    ║
 ║                                                   ║
 ║  Security: ${STRIPE_WEBHOOK_SECRET ? "✅ Webhook signature verification enabled" : "❌ STRIPE_WEBHOOK_SECRET missing!"}
 ╚═══════════════════════════════════════════════════╝

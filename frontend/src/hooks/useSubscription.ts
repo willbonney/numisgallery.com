@@ -13,6 +13,10 @@ export interface Subscription {
   id: string;
   userId: string;
   tier: SubscriptionTier;
+  /** Live schema field (legacy paddle name) */
+  paddleSubscriptionId?: string;
+  paddleCustomerId?: string;
+  /** Optional aliases if schema is migrated */
   stripeSubscriptionId?: string;
   stripeCustomerId?: string;
   status: SubscriptionStatus;
@@ -106,7 +110,7 @@ export function useSubscription() {
       case "free":
         return {
           maxBanknotes: 50,
-          maxFeatured: 0,
+          maxFeatured: 15, // matches pricing page
           pmgFetches: 5,
           aiExtractions: 5,
           storage: {

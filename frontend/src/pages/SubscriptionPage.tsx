@@ -34,6 +34,7 @@ import {
   useSubscription,
   type SubscriptionTier,
 } from "../hooks/useSubscription";
+import pb from "../lib/pocketbase";
 
 const STRIPE_PUBLISHABLE_KEY =
   import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "pk_live_default_key";
@@ -131,53 +132,55 @@ export function SubscriptionPage() {
     if (!stripe || !user) return;
 
     try {
-      // Get price ID for Pro tier (Free tier doesn't need Stripe)
-      const priceId =
-        tierId === "pro" ? import.meta.env.VITE_STRIPE_PRICE_PRO : null;
-
-      if (tierId === "pro" && !priceId) {
-        alert("Price ID not configured. Please set VITE_STRIPE_PRICE_PRO");
+      const authToken = pb.authStore.token;
+      if (!authToken) {
+        alert("Please log in to manage your subscription.");
         return;
       }
 
       if (tierId === "free") {
-        // Downgrade - redirect to Stripe billing portal to manage/cancel subscription
-        if (subscription?.stripeCustomerId) {
-          const response = await fetch(
-            `${WEBHOOKS_URL}/create-portal-session`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                customerId: subscription.stripeCustomerId,
-                returnUrl: `${window.location.origin}/subscription`,
-              }),
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error("Failed to create portal session");
-          }
-
-          const { url } = await response.json();
-          window.location.href = url;
-        } else {
+        // Already free with no billing customer
+        const customerId =
+          subscription?.paddleCustomerId || subscription?.stripeCustomerId;
+        if (subscription?.tier === "free" && !customerId) {
           alert("You are already on the Free plan.");
+          return;
         }
+
+        // Downgrade - redirect to Stripe billing portal (server resolves customer)
+        const response = await fetch(`${WEBHOOKS_URL}/create-portal-session`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            returnUrl: `${window.location.origin}/subscription`,
+          }),
+        });
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(
+            (err as { error?: string }).error ||
+              "Failed to create portal session"
+          );
+        }
+
+        const { url } = await response.json();
+        window.location.href = url;
         return;
       }
 
+      // Server resolves priceId from env; client only sends billing period
       const response = await fetch(`${WEBHOOKS_URL}/create-checkout-session`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          priceId,
-          customerEmail: user.email,
-          userId: user.id,
+          billingPeriod,
           successUrl: `${window.location.origin}/subscription?success=true`,
           cancelUrl: `${window.location.origin}/subscription`,
         }),

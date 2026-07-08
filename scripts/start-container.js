@@ -70,9 +70,9 @@ function startContainer(containerName, port, image, command = null) {
         fs.mkdirSync(pbHooksPath, { recursive: true });
       }
 
-      dockerRunCmd += ` -v ${pbDataPath}:/pb_data`;
-      dockerRunCmd += ` -v ${pbMigrationsPath}:/pb/pb_migrations`;
-      dockerRunCmd += ` -v ${pbHooksPath}:/pb/pb_hooks`;
+      dockerRunCmd += ` -v "${pbDataPath}:/pb_data"`;
+      dockerRunCmd += ` -v "${pbHooksPath}:/pb/pb_hooks"`;
+      // pb_migrations only when intentionally applying vetted migrations
     }
 
     dockerRunCmd += ` ${image}`;
