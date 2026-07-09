@@ -1,6 +1,5 @@
 import pb from "../lib/pocketbase";
 import type { Banknote, BanknoteFormData } from "../types/banknote";
-import { updateStorageUsed } from "../utils/storageTracking";
 
 const COLLECTION = "banknotes";
 
@@ -89,19 +88,8 @@ export const banknoteService = {
     }
 
     try {
-      const created = await pb
-        .collection(COLLECTION)
-        .create<Banknote>(formData);
-
-      // Best-effort client tracking; server hook is authoritative
-      const totalFileSize = obverseSize + reverseSize;
-      if (totalFileSize > 0) {
-        updateStorageUsed(totalFileSize).catch((err) =>
-          console.error("Failed to update storage tracking:", err)
-        );
-      }
-
-      return created;
+      // Storage counters are recomputed by PB hooks after create
+      return await pb.collection(COLLECTION).create<Banknote>(formData);
     } catch (error) {
       console.error("[PocketBase] Create error:", error);
       throw error;
@@ -116,17 +104,8 @@ export const banknoteService = {
       reverseImage?: File;
     }
   ): Promise<Banknote> {
-    let oldBanknote: Banknote | null = null;
-    try {
-      oldBanknote = await this.getBanknote(id);
-    } catch (error) {
-      console.warn("Could not fetch old banknote for storage tracking:", error);
-    }
-
     let newObverseSize = 0;
     let newReverseSize = 0;
-    const oldObverseSize = oldBanknote?.obverseImageSize || 0;
-    const oldReverseSize = oldBanknote?.reverseImageSize || 0;
     let replacedObverse = false;
     let replacedReverse = false;
 
@@ -160,42 +139,13 @@ export const banknoteService = {
       formData.append("reverseImageSize", String(newReverseSize));
     }
 
-    const updated = await pb
-      .collection(COLLECTION)
-      .update<Banknote>(id, formData);
-
-    // Only count size deltas for sides that were actually replaced
-    const netChange =
-      (replacedObverse ? newObverseSize - oldObverseSize : 0) +
-      (replacedReverse ? newReverseSize - oldReverseSize : 0);
-    if (netChange !== 0) {
-      updateStorageUsed(netChange).catch((err) =>
-        console.error("Failed to update storage tracking:", err)
-      );
-    }
-
-    return updated;
+    // Storage counters are recomputed by PB hooks after update
+    return await pb.collection(COLLECTION).update<Banknote>(id, formData);
   },
 
   // Delete a banknote
   async deleteBanknote(id: string): Promise<boolean> {
-    try {
-      const banknote = await this.getBanknote(id);
-      const totalSize =
-        (banknote.obverseImageSize || 0) + (banknote.reverseImageSize || 0);
-
-      if (totalSize > 0) {
-        updateStorageUsed(-totalSize).catch((err) =>
-          console.error("Failed to update storage tracking:", err)
-        );
-      }
-    } catch (error) {
-      console.warn(
-        "Could not fetch banknote for storage tracking before delete:",
-        error
-      );
-    }
-
+    // Storage counters are recomputed by PB hooks after delete
     return await pb.collection(COLLECTION).delete(id);
   },
 

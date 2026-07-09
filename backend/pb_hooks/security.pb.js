@@ -26,8 +26,8 @@ onRecordCreateRequest((e) => {
   e.record.set("pmgFetchesUsed", 0);
   e.record.set("aiExtractionsUsed", 0);
   e.record.set("totalStorageUsed", 0);
-  e.record.set("paddleCustomerId", "");
-  e.record.set("paddleSubscriptionId", "");
+  e.record.set("stripeCustomerId", "");
+  e.record.set("stripeSubscriptionId", "");
   e.next();
 }, "subscriptions");
 

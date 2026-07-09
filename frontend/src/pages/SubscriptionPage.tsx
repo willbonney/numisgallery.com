@@ -141,7 +141,7 @@ export function SubscriptionPage() {
       if (tierId === "free") {
         // Already free with no billing customer
         const customerId =
-          subscription?.paddleCustomerId || subscription?.stripeCustomerId;
+          subscription?.stripeCustomerId || subscription?.paddleCustomerId;
         if (subscription?.tier === "free" && !customerId) {
           alert("You are already on the Free plan.");
           return;
@@ -187,13 +187,22 @@ export function SubscriptionPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create checkout session");
+        const err = await response.json().catch(() => ({}));
+        throw new Error(
+          (err as { error?: string }).error ||
+            "Failed to create checkout session"
+        );
       }
 
       const { sessionUrl } = await response.json();
       window.location.href = sessionUrl;
     } catch (error) {
       console.error("Failed to open checkout:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to open checkout. Please try again."
+      );
     }
   };
 

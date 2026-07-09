@@ -13,12 +13,11 @@ export interface Subscription {
   id: string;
   userId: string;
   tier: SubscriptionTier;
-  /** Live schema field (legacy paddle name) */
-  paddleSubscriptionId?: string;
-  paddleCustomerId?: string;
-  /** Optional aliases if schema is migrated */
   stripeSubscriptionId?: string;
   stripeCustomerId?: string;
+  /** @deprecated legacy field names — kept for reading old records during migration */
+  paddleSubscriptionId?: string;
+  paddleCustomerId?: string;
   status: SubscriptionStatus;
   currentPeriodEnd?: string;
   cancelAtPeriodEnd: boolean;

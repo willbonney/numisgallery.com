@@ -11,6 +11,7 @@
     "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
     "setup": "npm run install:all && npm run setup:user-settings",
     "setup:user-settings": "node backend/setup-user-settings.cjs",
+    "export:pb-schema": "node scripts/export-pb-schema.js",
     "docker:setup": "docker pull ghcr.io/muchobien/pocketbase:latest",
     "update:pocketbase": "node scripts/update-pocketbase.js",
     "update:hermes": "cd ../hermes && node scripts/update-hermes.js",

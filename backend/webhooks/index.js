@@ -140,32 +140,44 @@ function getAllowedPriceIds() {
   return [STRIPE_PRICE_PRO, STRIPE_PRICE_PRO_YEARLY].filter(Boolean);
 }
 
+/**
+ * Resolve Stripe price from billing period.
+ * Never silently fall back from yearly → monthly (would undercharge yearly UI).
+ * @returns {{ priceId: string } | { error: string }}
+ */
 function resolvePriceId(billingPeriod) {
-  if (billingPeriod === "yearly" && STRIPE_PRICE_PRO_YEARLY) {
-    return STRIPE_PRICE_PRO_YEARLY;
+  if (billingPeriod === "yearly") {
+    if (!STRIPE_PRICE_PRO_YEARLY) {
+      return {
+        error:
+          "Yearly pricing is not configured (set STRIPE_PRICE_PRO_YEARLY)",
+      };
+    }
+    return { priceId: STRIPE_PRICE_PRO_YEARLY };
   }
-  return STRIPE_PRICE_PRO;
+  // default monthly
+  if (!STRIPE_PRICE_PRO) {
+    return { error: "STRIPE_PRICE_PRO is not configured on the server" };
+  }
+  return { priceId: STRIPE_PRICE_PRO };
 }
 
-// Live schema uses paddle* field names (legacy rename); support both when reading.
 function getCustomerId(sub) {
-  return sub?.paddleCustomerId || sub?.stripeCustomerId || null;
+  // Prefer stripe* (canonical); fall back to legacy paddle* if present
+  return sub?.stripeCustomerId || sub?.paddleCustomerId || null;
 }
 
 function getSubscriptionId(sub) {
-  return sub?.paddleSubscriptionId || sub?.stripeSubscriptionId || null;
+  return sub?.stripeSubscriptionId || sub?.paddleSubscriptionId || null;
 }
 
 function subscriptionWriteFields(data) {
-  // Write both naming conventions so schema drift does not break billing.
   return {
     userId: data.userId,
     tier: data.tier,
     status: data.status,
     currentPeriodEnd: data.currentPeriodEnd,
     cancelAtPeriodEnd: data.cancelAtPeriodEnd,
-    paddleCustomerId: data.customerId,
-    paddleSubscriptionId: data.subscriptionId,
     stripeCustomerId: data.customerId,
     stripeSubscriptionId: data.subscriptionId,
   };
@@ -212,8 +224,8 @@ async function findSubscriptionByUserId(token, userId) {
 async function findSubscriptionByCustomerId(token, customerId) {
   if (!customerId) return null;
 
-  // Try both field names used across schema migrations
-  for (const field of ["paddleCustomerId", "stripeCustomerId"]) {
+  // Prefer stripe*; also query legacy paddle* if still present
+  for (const field of ["stripeCustomerId", "paddleCustomerId"]) {
     const response = await fetch(
       `${PB_URL}/api/collections/subscriptions/records?filter=${encodeURIComponent(
         `${field}="${customerId}"`,
@@ -356,15 +368,14 @@ async function updateSubscription(token, stripeData) {
     );
 
     if (existingSubscription) {
-      // Prefer writing only fields that exist on the collection
       const safePayload = {
         userId,
         tier,
         status: payload.status,
         currentPeriodEnd: payload.currentPeriodEnd,
         cancelAtPeriodEnd: payload.cancelAtPeriodEnd,
-        paddleCustomerId: payload.paddleCustomerId,
-        paddleSubscriptionId: payload.paddleSubscriptionId,
+        stripeCustomerId: payload.stripeCustomerId,
+        stripeSubscriptionId: payload.stripeSubscriptionId,
       };
 
       const updateResponse = await fetch(
@@ -392,8 +403,8 @@ async function updateSubscription(token, stripeData) {
         status: payload.status,
         currentPeriodEnd: payload.currentPeriodEnd,
         cancelAtPeriodEnd: payload.cancelAtPeriodEnd,
-        paddleCustomerId: payload.paddleCustomerId,
-        paddleSubscriptionId: payload.paddleSubscriptionId,
+        stripeCustomerId: payload.stripeCustomerId,
+        stripeSubscriptionId: payload.stripeSubscriptionId,
         pmgFetchesUsed: 0,
         aiExtractionsUsed: 0,
         totalStorageUsed: 0,
@@ -617,12 +628,11 @@ async function handleCreateCheckoutSession(req, res) {
     }
 
     // Server resolves price — never trust client priceId
-    const priceId = resolvePriceId(billingPeriod);
-    if (!priceId) {
-      return res.status(500).json({
-        error: "STRIPE_PRICE_PRO is not configured on the server",
-      });
+    const resolved = resolvePriceId(billingPeriod);
+    if (resolved.error) {
+      return res.status(400).json({ error: resolved.error });
     }
+    const priceId = resolved.priceId;
 
     const allowed = getAllowedPriceIds();
     if (!allowed.includes(priceId)) {
