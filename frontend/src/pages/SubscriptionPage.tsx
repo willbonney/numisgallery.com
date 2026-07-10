@@ -107,7 +107,7 @@ const pricingTiers: PricingTier[] = [
 
 export function SubscriptionPage() {
   const { user } = useAuth();
-  const { subscription, loading } = useSubscription();
+  const { subscription, effectiveTier, loading } = useSubscription();
   const [stripe, setStripe] = useState<Stripe | null>(null);
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">(
     "monthly"
@@ -227,7 +227,8 @@ export function SubscriptionPage() {
     );
   }
 
-  const currentTier = subscription?.tier || "free";
+  // Effective tier for feature access; billing status still shown from raw subscription
+  const currentTier = effectiveTier;
 
   return (
     <Container

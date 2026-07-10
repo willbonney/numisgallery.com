@@ -14,8 +14,8 @@ import { GalleryGroup } from './GalleryGroup';
 export function Gallery({ banknotes, onEdit, onDelete, showOwner = true, gateFilters = true, initialBanknoteId }: GalleryProps) {
   const initialBanknoteHandledRef = useRef(false);
   const { settings, updateGallerySettings } = useSettings();
-  const { subscription } = useSubscription();
-  const isPro = subscription?.tier === 'pro';
+  const { effectiveTier } = useSubscription();
+  const isPro = effectiveTier === 'pro';
   const filtersDisabled = gateFilters && !isPro;
   
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);

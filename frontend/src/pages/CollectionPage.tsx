@@ -47,6 +47,7 @@ export function CollectionPage({ isOwner = true }: CollectionPageProps) {
   const { user } = useAuth();
   const {
     subscription,
+    effectiveTier,
     getTierLimits,
     reload: reloadSubscription,
   } = useSubscription();
@@ -174,10 +175,14 @@ export function CollectionPage({ isOwner = true }: CollectionPageProps) {
     ? banknotes
     : banknotes.filter((b) => b.isVisibleInCollection);
 
-  // Check subscription limits
-  const tier = subscription?.tier || "free";
+  // Effective tier: past_due / canceled pro is treated as free for limits/features
+  const tier = effectiveTier;
   const limits = getTierLimits(tier);
-  const canAddBanknote = banknotes.length < limits.maxBanknotes;
+  const remainingSlots =
+    limits.maxBanknotes === Infinity
+      ? Infinity
+      : Math.max(0, limits.maxBanknotes - banknotes.length);
+  const canAddBanknote = remainingSlots > 0;
   const isPro = tier === "pro";
 
   const handleSubmit = async (
@@ -250,30 +255,60 @@ export function CollectionPage({ isOwner = true }: CollectionPageProps) {
         return;
       }
 
+      // Enforce plan limit before importing (server hooks also enforce)
+      const slotsLeft =
+        limits.maxBanknotes === Infinity
+          ? banknotesData.length
+          : Math.max(0, limits.maxBanknotes - banknotes.length);
+
+      if (slotsLeft === 0) {
+        notifications.show({
+          title: "Import blocked",
+          message: `You've reached your plan limit of ${limits.maxBanknotes} banknotes. Upgrade or delete notes first.`,
+          color: "red",
+        });
+        setImporting(false);
+        setImportModalOpen(false);
+        return;
+      }
+
+      const skippedForLimit = Math.max(0, banknotesData.length - slotsLeft);
+      const toImport = banknotesData.slice(0, slotsLeft);
+
       // Create banknotes one by one with progress
       let successCount = 0;
       let errorCount = 0;
+      let stoppedAtLimit = false;
 
-      for (let i = 0; i < banknotesData.length; i++) {
+      for (let i = 0; i < toImport.length; i++) {
         try {
-          const data = banknotesData[i] as BanknoteFormData;
-          console.log("[Import] Creating banknote with data:", {
-            country: data.country,
-            countryCode: data.countryCode,
-          });
-          const created = await banknoteService.createBanknote(data);
-          console.log("[Import] Created banknote:", {
-            id: created.id,
-            country: created.country,
-            countryCode: created.countryCode,
-          });
+          const data = toImport[i] as BanknoteFormData;
+          await banknoteService.createBanknote(data);
           successCount++;
         } catch (error) {
           console.error(`Failed to import banknote ${i + 1}:`, error);
           errorCount++;
+          const errObj = error as {
+            message?: string;
+            response?: { message?: string; data?: { message?: string } };
+          };
+          const msg = [
+            errObj?.message,
+            errObj?.response?.message,
+            errObj?.response?.data?.message,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          // Server hook limit — stop importing further rows
+          if (msg.includes("limit reached") || msg.includes("banknote limit")) {
+            stoppedAtLimit = true;
+            setImportProgress(100);
+            break;
+          }
         }
 
-        setImportProgress(Math.round(((i + 1) / banknotesData.length) * 100));
+        setImportProgress(Math.round(((i + 1) / toImport.length) * 100));
       }
 
       // Reload banknotes and subscription (for storage updates)
@@ -283,9 +318,22 @@ export function CollectionPage({ isOwner = true }: CollectionPageProps) {
       setImportModalOpen(false);
       setImportProgress(0);
 
+      const extraParts: string[] = [];
+      if (errorCount > 0) {
+        extraParts.push(`${errorCount} failed`);
+      }
+      if (skippedForLimit > 0) {
+        extraParts.push(
+          `${skippedForLimit} skipped (plan limit of ${limits.maxBanknotes})`
+        );
+      }
+      if (stoppedAtLimit) {
+        extraParts.push("stopped early after hitting plan limit");
+      }
+
       notifications.show({
         title: "Import Complete",
-        message: `Successfully imported ${successCount} banknote${successCount !== 1 ? "s" : ""}${errorCount > 0 ? ` (${errorCount} failed)` : ""}`,
+        message: `Successfully imported ${successCount} banknote${successCount !== 1 ? "s" : ""}${extraParts.length ? ` (${extraParts.join("; ")})` : ""}`,
         color: successCount > 0 ? "green" : "red",
       });
     } catch (error) {

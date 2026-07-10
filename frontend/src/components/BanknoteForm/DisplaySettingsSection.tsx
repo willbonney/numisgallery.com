@@ -18,10 +18,10 @@ export function DisplaySettingsSection({
   currentFeaturedCount = 0,
   // isEditing is reserved for future use
 }: DisplaySettingsSectionProps) {
-  const { subscription, getTierLimits } = useSubscription();
+  const { effectiveTier, getTierLimits } = useSubscription();
   const navigate = useNavigate();
   
-  const tier = subscription?.tier || 'free';
+  const tier = effectiveTier;
   const limits = getTierLimits(tier);
   const isPro = tier === 'pro';
   
@@ -67,7 +67,7 @@ export function DisplaySettingsSection({
               if (canFeature) {
                 form.setFieldValue('isFeatured', e.currentTarget.checked);
               } else {
-                navigate('/pricing');
+                navigate('/subscription');
               }
             }}
           />

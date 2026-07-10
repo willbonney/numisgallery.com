@@ -30,6 +30,20 @@ export interface Subscription {
   updated: string;
 }
 
+/** Pro features only when tier is pro and billing status is healthy */
+export function getEffectiveTier(
+  subscription: Subscription | null | undefined
+): SubscriptionTier {
+  if (!subscription) return "free";
+  if (
+    subscription.tier === "pro" &&
+    (subscription.status === "active" || subscription.status === "trialing")
+  ) {
+    return "pro";
+  }
+  return "free";
+}
+
 export function useSubscription() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
@@ -129,6 +143,8 @@ export function useSubscription() {
     }
   }, []);
 
+  const effectiveTier = getEffectiveTier(subscription);
+
   const getUsageInfo = useCallback(() => {
     if (!subscription) {
       return {
@@ -137,7 +153,7 @@ export function useSubscription() {
       };
     }
 
-    const limits = getTierLimits(subscription.tier);
+    const limits = getTierLimits(getEffectiveTier(subscription));
     const pmgUsed = subscription.pmgFetchesUsed || 0;
     const aiUsed = subscription.aiExtractionsUsed || 0;
 
@@ -163,6 +179,8 @@ export function useSubscription() {
 
   return {
     subscription,
+    /** tier with past_due / canceled / incomplete treated as free for gating */
+    effectiveTier,
     loading,
     reload: loadSubscription,
     getTierLimits,

@@ -51,7 +51,7 @@ import { getImageUrl } from "./utils/fileHelpers";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
-  const { subscription } = useSubscription();
+  const { effectiveTier } = useSubscription();
   const { setColorScheme } = useMantineColorScheme();
   const computedColorScheme = useComputedColorScheme("dark");
   const { updateTheme } = useSettings();
@@ -197,7 +197,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
                       >
                         {user.email.charAt(0).toUpperCase()}
                       </Avatar>
-                      {subscription?.tier === "pro" && (
+                      {effectiveTier === "pro" && (
                         <IconCrown
                           size={20}
                           color="var(--mantine-color-yellow-6)"

@@ -39,10 +39,14 @@ export async function checkStorageLimit(newFileSize: number): Promise<{
     const currentSize = subscription.totalStorageUsed || 0;
     const newSize = currentSize + newFileSize;
 
-    const limit =
-      subscription.tier === "pro"
-        ? 2 * 1024 * 1024 * 1024 // 2GB
-        : 250 * 1024 * 1024; // 250MB
+    // Match server hooks: past_due / canceled pro counts as free
+    const status = subscription.status || "active";
+    const isActivePro =
+      subscription.tier === "pro" &&
+      (status === "active" || status === "trialing");
+    const limit = isActivePro
+      ? 2 * 1024 * 1024 * 1024 // 2GB
+      : 250 * 1024 * 1024; // 250MB
 
     const allowed = newSize <= limit;
 
