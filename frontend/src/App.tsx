@@ -131,7 +131,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
             <Group gap="sm" wrap="nowrap" style={{ flexShrink: 0 }}>
               <Anchor
-                href="https://discord.gg/7dJD6Wb7"
+                href="https://discord.gg/mfcar4wYuC"
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Join our Discord community"
