@@ -1,0 +1,41 @@
+# Deploy PocketBase to Fly.io (migrations apply on container start).
+#
+# Required secret (repo Settings → Secrets → Actions):
+#   FLY_API_TOKEN — create with:
+#     fly tokens create deploy -a numisgallery-pocketbase -x 999999h
+#
+name: Deploy PocketBase
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "backend/Dockerfile"
+      - "backend/fly.toml"
+      - "backend/pb_hooks/**"
+      - "backend/pb_migrations/**"
+      - ".github/workflows/deploy-pocketbase.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-pocketbase
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy numisgallery-pocketbase
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only --yes
