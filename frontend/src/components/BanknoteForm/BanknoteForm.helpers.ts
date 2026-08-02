@@ -322,6 +322,238 @@ export async function fetchPMGImages(
   }
 }
 
+export type NumistaImportResult = {
+  numistaId?: string;
+  noteType?: "world" | "us";
+  country?: string;
+  countryCode?: string;
+  authority?: string;
+  city?: string;
+  pickNumber?: string;
+  faceValue?: number;
+  currency?: string;
+  yearOfIssueSingle?: number;
+  isRangeOfYearOfIssue?: boolean;
+  yearOfIssueStart?: number;
+  yearOfIssueEnd?: number;
+  composition?: "Paper" | "Polymer";
+  watermark?: string;
+  obvDescription?: string;
+  revDescription?: string;
+  obvEngraver?: string;
+  obvDesigner?: string;
+  revEngraver?: string;
+  revDesigner?: string;
+  printer?: { authority: string; city?: string; country?: string };
+  numIssued?: number;
+  inCirculation?: boolean;
+  signatures?: Array<{
+    name: string;
+    title?: string;
+    signatureScan?: string;
+    signatureScanUrl?: string;
+  }>;
+};
+
+function numistaStageToMessage(stage: string, progressMessage?: string): string {
+  const map: Record<string, string> = {
+    starting: "Starting Numista import...",
+    rate_limiting:
+      progressMessage || "Rate limiting — waiting before next request...",
+    checking_flaresolverr: "Checking FlareSolverr status...",
+    waiting_flaresolverr: "Waiting for FlareSolverr to start...",
+    fetching: "Bypassing Cloudflare — fetching Numista page...",
+    done: "Details found — applying to form...",
+  };
+  return map[stage] ?? (progressMessage || "Processing...");
+}
+
+function scheduleNumistaDirectMessages(
+  setLoading: (loading: boolean, message?: string) => void
+): () => void {
+  const stages: Array<{ delay: number; msg: string }> = [
+    { delay: 6_000, msg: "Fetching Numista catalog page..." },
+    { delay: 18_000, msg: "Parsing banknote features..." },
+    { delay: 35_000, msg: "Almost done — waiting for response..." },
+  ];
+  const timers = stages.map(({ delay, msg }) =>
+    setTimeout(() => setLoading(true, msg), delay)
+  );
+  return () => timers.forEach(clearTimeout);
+}
+
+/**
+ * Import banknote catalog details from a Numista URL (queue or direct).
+ */
+export async function importFromNumista(
+  url: string,
+  setImporting: (value: boolean) => void,
+  setLoading: (loading: boolean, message?: string) => void,
+  onImported: (data: NumistaImportResult) => void
+) {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    notifications.show({
+      title: "Missing URL",
+      message: "Paste a Numista banknote URL first",
+      color: "yellow",
+    });
+    return;
+  }
+
+  setImporting(true);
+
+  try {
+    setLoading(true, "Checking services...");
+
+    let flareSolverrOnline = false;
+    let flyMachineState: string | null = null;
+
+    try {
+      const statusRes = await fetch(`${SCRAPER_URL}/api/status`, {
+        headers: getAuthHeaders(),
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (statusRes.ok) {
+        const status = await statusRes.json();
+        flareSolverrOnline = status.flareSolverr?.status === "online";
+        flyMachineState = status.flyMachine?.state ?? null;
+      }
+    } catch {
+      // proceed — backend handles startup
+    }
+
+    if (!flareSolverrOnline) {
+      if (flyMachineState === "stopped") {
+        setLoading(true, "Starting FlareSolverr on Fly.io...");
+      } else if (flyMachineState === "starting") {
+        setLoading(true, "FlareSolverr machine is starting up on Fly.io...");
+      } else {
+        setLoading(true, "Waiting for FlareSolverr to start...");
+      }
+    } else {
+      setLoading(true, "Submitting Numista import...");
+    }
+
+    const submitResponse = await fetch(`${SCRAPER_URL}/api/numista-import`, {
+      method: "POST",
+      headers: {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url: trimmed }),
+    });
+
+    const submitData = await submitResponse.json();
+
+    if (!submitResponse.ok) {
+      throw new Error(submitData.error || "Failed to import from Numista");
+    }
+
+    let result: NumistaImportResult | null = null;
+
+    if (submitData.jobId && submitData.status === "queued") {
+      const jobId = submitData.jobId;
+      const initialPosition = submitData.position;
+
+      if (initialPosition > 1) {
+        setLoading(true, `Queued (position ${initialPosition}) — waiting...`);
+        notifications.show({
+          title: "Import Queued",
+          message: `Your Numista import is in queue (position ${initialPosition}).`,
+          color: "blue",
+          autoClose: 3000,
+        });
+      } else {
+        setLoading(true, "Processing Numista import...");
+      }
+
+      const pollInterval = 2_000;
+      const maxPollTime = 300_000;
+      const startTime = Date.now();
+
+      while (Date.now() - startTime < maxPollTime) {
+        const statusResponse = await fetch(
+          `${SCRAPER_URL}/api/numista-import/${jobId}`,
+          { headers: getAuthHeaders() }
+        );
+        const statusData = await statusResponse.json();
+
+        if (!statusResponse.ok) {
+          throw new Error(statusData.error || "Failed to check job status");
+        }
+
+        if (statusData.status === "waiting") {
+          const pos = statusData.position;
+          setLoading(
+            true,
+            pos > 0
+              ? `Queued (position ${pos}) — waiting...`
+              : "Queued — waiting..."
+          );
+        } else if (statusData.status === "active") {
+          const prog = statusData.progress as {
+            stage?: string;
+            message?: string;
+          } | null;
+          setLoading(
+            true,
+            prog?.stage
+              ? numistaStageToMessage(prog.stage, prog.message)
+              : "Fetching Numista page..."
+          );
+        }
+
+        if (statusData.status === "completed" && statusData.result) {
+          result = statusData.result as NumistaImportResult;
+          break;
+        } else if (statusData.status === "failed") {
+          throw new Error(statusData.error || "Import job failed");
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      }
+
+      if (!result && Date.now() - startTime >= maxPollTime) {
+        throw new Error("Import timed out. Please try again.");
+      }
+    } else {
+      const cancelTimers = scheduleNumistaDirectMessages(setLoading);
+      try {
+        result = submitData as NumistaImportResult;
+      } finally {
+        cancelTimers();
+      }
+    }
+
+    if (!result) {
+      throw new Error("No data returned from Numista");
+    }
+
+    setLoading(true, "Applying details to form...");
+    onImported(result);
+
+    notifications.show({
+      title: "Numista Import Complete",
+      message: result.numistaId
+        ? `Imported details for N#${result.numistaId}. Please verify the fields.`
+        : "Imported details. Please verify the fields.",
+      color: "green",
+      autoClose: 6000,
+    });
+  } catch (error) {
+    notifications.show({
+      title: "Numista Import Failed",
+      message:
+        error instanceof Error ? error.message : "Could not import from Numista",
+      color: "red",
+    });
+  } finally {
+    setImporting(false);
+    setLoading(false);
+  }
+}
+
 export async function extractDataFromImages(
   obverseUrl: string,
   reverseUrl: string,

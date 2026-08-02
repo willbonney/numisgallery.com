@@ -26,7 +26,7 @@ import {
   IconUpload,
 } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { BanknoteForm } from "../components/BanknoteForm";
 import { Gallery } from "../components/Gallery";
 import { useLoading } from "../contexts/LoadingContext";
@@ -53,6 +53,7 @@ export function CollectionPage({ isOwner = true }: CollectionPageProps) {
   } = useSubscription();
   const { setLoading } = useLoading();
   const navigate = useNavigate();
+  const location = useLocation();
   const [view, setView] = useState<"gallery" | "form">("gallery");
   const [banknotes, setBanknotes] = useState<Banknote[]>([]);
   const [editingBanknote, setEditingBanknote] = useState<Banknote | null>(null);
@@ -90,6 +91,15 @@ export function CollectionPage({ isOwner = true }: CollectionPageProps) {
   useEffect(() => {
     loadBanknotes();
   }, [loadBanknotes]);
+
+  // Navbar "Your Collection" re-click stays on the same path; reset form → gallery.
+  useEffect(() => {
+    const state = location.state as { navReset?: number } | null;
+    if (state?.navReset) {
+      setEditingBanknote(null);
+      setView("gallery");
+    }
+  }, [location.state]);
 
   const handleCopyUrl = () => {
     navigator.clipboard.writeText(shareableUrl);

@@ -1,5 +1,6 @@
 import { Anchor, Group, Stack, useMantineTheme } from '@mantine/core';
-import { Link, useLocation } from 'react-router-dom';
+import type { MouseEvent } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
 const publicNavItems = [
@@ -22,6 +23,7 @@ interface NavigationProps {
 export function Navigation({ vertical = false }: NavigationProps) {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const theme = useMantineTheme();
   const primaryColor = theme.primaryColor as keyof typeof theme.colors;
 
@@ -30,11 +32,25 @@ export function Navigation({ vertical = false }: NavigationProps) {
   const navLinks = navItems.map((item) => {
     const isActive = location.pathname === item.path;
     const activeColor = theme.colors[primaryColor]?.[6] || theme.colors.sage[6];
+
+    // Re-clicking the current route is a no-op by default (same URL). Force a
+    // navigation with fresh state so pages can reset local UI (e.g. form → gallery).
+    const handleClick = (e: MouseEvent) => {
+      if (location.pathname === item.path) {
+        e.preventDefault();
+        navigate(item.path, {
+          replace: true,
+          state: { navReset: Date.now() },
+        });
+      }
+    };
+
     return (
       <Anchor
         key={item.path}
         component={Link}
         to={item.path}
+        onClick={handleClick}
         underline="never"
         c={isActive ? theme.primaryColor : 'dimmed'}
         fw={isActive ? 500 : 400}

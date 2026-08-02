@@ -20,12 +20,15 @@ import type { Banknote, BanknoteFormData, PmgGrade } from "../types/banknote";
 import { PMG_GRADES } from "../types/banknote";
 import {
   extractDataFromImages as extractDataFromImagesHelper,
+  importFromNumista as importFromNumistaHelper,
   selectNumberInputOnFocus,
+  type NumistaImportResult,
 } from "./BanknoteForm/BanknoteForm.helpers";
 import { DenominationSection } from "./BanknoteForm/DenominationSection";
 import { DetailsSection } from "./BanknoteForm/DetailsSection";
 import { DisplaySettingsSection } from "./BanknoteForm/DisplaySettingsSection";
 import { ImagesSection } from "./BanknoteForm/ImagesSection";
+import { NumistaImportSection } from "./BanknoteForm/NumistaImportSection";
 import { OriginSection } from "./BanknoteForm/OriginSection";
 import { PmgSection } from "./BanknoteForm/PmgSection";
 import { PurchaseSection } from "./BanknoteForm/PurchaseSection";
@@ -110,6 +113,10 @@ export function BanknoteForm({
 
   const [extractingData, setExtractingData] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [numistaUrl, setNumistaUrl] = useState(
+    banknote?.numistaId ? `https://en.numista.com/${banknote.numistaId}` : ""
+  );
+  const [importingNumista, setImportingNumista] = useState(false);
 
   const form = useForm<BanknoteFormData>({
     initialValues: {
@@ -138,6 +145,18 @@ export function BanknoteForm({
       isSpecimen: banknote?.isSpecimen || false,
       serialNumber: banknote?.serialNumber || "",
       watermark: banknote?.watermark || "",
+      numistaId: banknote?.numistaId || "",
+      composition: banknote?.composition,
+      obvDescription: banknote?.obvDescription || "",
+      revDescription: banknote?.revDescription || "",
+      obvEngraver: banknote?.obvEngraver || "",
+      obvDesigner: banknote?.obvDesigner || "",
+      revEngraver: banknote?.revEngraver || "",
+      revDesigner: banknote?.revDesigner || "",
+      printer: banknote?.printer || null,
+      numIssued: banknote?.numIssued,
+      inCirculation: banknote?.inCirculation,
+      signatures: banknote?.signatures || [],
       purchasePriceCurrency: banknote?.purchasePriceCurrency || "USD",
       purchasePrice: banknote?.purchasePrice || 0,
       dateOfPurchase: banknote?.dateOfPurchase || "",
@@ -159,6 +178,84 @@ export function BanknoteForm({
         form.setFieldValue("currency", "");
       }
     }
+  };
+
+  const applyNumistaImport = (data: NumistaImportResult) => {
+    if (data.noteType) {
+      handleNoteTypeChange(data.noteType);
+    }
+
+    if (data.numistaId) {
+      form.setFieldValue("numistaId", data.numistaId);
+      setNumistaUrl(`https://en.numista.com/${data.numistaId}`);
+    }
+
+    if (data.noteType === "us" || data.countryCode === "us") {
+      if (data.country) form.setFieldValue("country", data.country);
+      if (data.authority) form.setFieldValue("authority", data.authority);
+      if (data.city) form.setFieldValue("city", data.city);
+      form.setFieldValue("countryCode", "us");
+    } else {
+      if (data.country) {
+        form.setFieldValue("country", data.country);
+        const code = data.countryCode || getCountryCode(data.country);
+        if (code) form.setFieldValue("countryCode", code);
+      }
+      if (data.authority) form.setFieldValue("authority", data.authority);
+    }
+
+    if (data.pickNumber) form.setFieldValue("pickNumber", data.pickNumber);
+    if (data.faceValue != null) form.setFieldValue("faceValue", data.faceValue);
+    if (data.currency) form.setFieldValue("currency", data.currency);
+
+    if (data.isRangeOfYearOfIssue) {
+      form.setFieldValue("isRangeOfYearOfIssue", true);
+      if (data.yearOfIssueStart != null) {
+        form.setFieldValue("yearOfIssueStart", data.yearOfIssueStart);
+      }
+      if (data.yearOfIssueEnd != null) {
+        form.setFieldValue("yearOfIssueEnd", data.yearOfIssueEnd);
+      }
+    } else if (data.yearOfIssueSingle != null) {
+      form.setFieldValue("isRangeOfYearOfIssue", false);
+      form.setFieldValue("yearOfIssueSingle", data.yearOfIssueSingle);
+    }
+
+    if (data.watermark) form.setFieldValue("watermark", data.watermark);
+    if (data.composition) form.setFieldValue("composition", data.composition);
+    if (data.obvDescription)
+      form.setFieldValue("obvDescription", data.obvDescription);
+    if (data.revDescription)
+      form.setFieldValue("revDescription", data.revDescription);
+    if (data.obvEngraver) form.setFieldValue("obvEngraver", data.obvEngraver);
+    if (data.obvDesigner) form.setFieldValue("obvDesigner", data.obvDesigner);
+    if (data.revEngraver) form.setFieldValue("revEngraver", data.revEngraver);
+    if (data.revDesigner) form.setFieldValue("revDesigner", data.revDesigner);
+    if (data.printer) form.setFieldValue("printer", data.printer);
+    if (data.numIssued != null) form.setFieldValue("numIssued", data.numIssued);
+    if (data.inCirculation !== undefined) {
+      form.setFieldValue("inCirculation", data.inCirculation);
+    }
+    if (data.signatures && data.signatures.length > 0) {
+      form.setFieldValue(
+        "signatures",
+        data.signatures.map((s) => ({
+          name: s.name || "",
+          title: s.title,
+          signatureScan: s.signatureScan || "",
+          signatureScanUrl: s.signatureScanUrl,
+        }))
+      );
+    }
+  };
+
+  const handleNumistaImport = () => {
+    importFromNumistaHelper(
+      numistaUrl,
+      setImportingNumista,
+      setLoading,
+      applyNumistaImport
+    );
   };
 
   const extractDataFromImages = () => {
@@ -261,12 +358,16 @@ export function BanknoteForm({
     getCommentsString,
     clearImages: imageHandlers.clearImages,
     resetComments,
+    onResetExtra: () => setNumistaUrl(""),
     setSubmitting,
     setLoading,
   });
 
   const isProcessing =
-    imageHandlers.fetchingImages || extractingData || submitting;
+    imageHandlers.fetchingImages ||
+    extractingData ||
+    importingNumista ||
+    submitting;
 
   return (
     <Paper p="lg" radius="md" withBorder>
@@ -343,6 +444,14 @@ export function BanknoteForm({
           />
           <Collapse in={sectionsOpen.details}>
             <Stack gap="md">
+              <NumistaImportSection
+                url={numistaUrl}
+                isProcessing={isProcessing}
+                isImporting={importingNumista}
+                onUrlChange={setNumistaUrl}
+                onImport={handleNumistaImport}
+              />
+              <Divider />
               <OriginSection
                 form={form}
                 isProcessing={isProcessing}

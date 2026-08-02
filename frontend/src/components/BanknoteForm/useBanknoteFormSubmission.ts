@@ -11,6 +11,7 @@ interface UseBanknoteFormSubmissionProps {
   getCommentsString: () => string;
   clearImages: () => void;
   resetComments: () => void;
+  onResetExtra?: () => void;
   setSubmitting: (value: boolean) => void;
   setLoading: (loading: boolean, message?: string) => void;
 }
@@ -44,8 +45,8 @@ function validateAndTransformWorldNote(values: BanknoteFormData): BanknoteFormDa
   if (!values.country || values.country.trim() === '') {
     throw new Error('Country is required for world notes');
   }
-  // Remove authority and city fields for world notes using destructuring
-  const { authority: _authority, city: _city, ...rest } = values;
+  // City is US-note specific; keep authority (issuer) for world notes
+  const { city: _city, ...rest } = values;
   return rest;
 }
 
@@ -68,6 +69,7 @@ export function useBanknoteFormSubmission({
   getCommentsString,
   clearImages,
   resetComments,
+  onResetExtra,
   setSubmitting,
   setLoading,
 }: UseBanknoteFormSubmissionProps) {
@@ -87,6 +89,13 @@ export function useBanknoteFormSubmission({
         'pickNumber',
         'serialNumber',
         'watermark',
+        'numistaId',
+        'obvDescription',
+        'revDescription',
+        'obvEngraver',
+        'obvDesigner',
+        'revEngraver',
+        'revDesigner',
       ];
       let cleanedValues = trimStringFields(values, stringFieldsToTrim);
 
@@ -96,6 +105,15 @@ export function useBanknoteFormSubmission({
       } else if (cleanedValues.noteType === 'world') {
         cleanedValues = validateAndTransformWorldNote(cleanedValues);
       }
+
+      // Strip remote-only signature URL keys before save (PB stores filename refs)
+      const signaturesForSave = (cleanedValues.signatures || []).map(
+        ({ name, title, signatureScan }) => ({
+          name: (name || '').trim(),
+          ...(title ? { title: title.trim() } : {}),
+          ...(signatureScan ? { signatureScan } : {}),
+        }),
+      ).filter((s) => s.name || s.signatureScan);
 
       // Build final values with defaults
       const finalValues: BanknoteFormData = {
@@ -109,6 +127,14 @@ export function useBanknoteFormSubmission({
         watermark: cleanedValues.watermark || '',
         dateOfPurchase: cleanedValues.dateOfPurchase || '',
         pmgComments: commentsString,
+        numistaId: cleanedValues.numistaId || '',
+        obvDescription: cleanedValues.obvDescription || '',
+        revDescription: cleanedValues.revDescription || '',
+        obvEngraver: cleanedValues.obvEngraver || '',
+        obvDesigner: cleanedValues.obvDesigner || '',
+        revEngraver: cleanedValues.revEngraver || '',
+        revDesigner: cleanedValues.revDesigner || '',
+        signatures: signaturesForSave,
       };
 
       // Check storage before upload
@@ -136,6 +162,7 @@ export function useBanknoteFormSubmission({
         form.reset();
         clearImages();
         resetComments();
+        onResetExtra?.();
       }
     } catch (error) {
       notifications.show({

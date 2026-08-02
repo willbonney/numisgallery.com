@@ -76,7 +76,15 @@ export const banknoteService = {
         // Never accept client-supplied ownership override
         return;
       } else if (value !== null && value !== undefined && value !== "") {
-        formData.append(key, String(value));
+        if (typeof value === "object") {
+          formData.append(key, JSON.stringify(value));
+        } else if (typeof value === "boolean") {
+          formData.append(key, value ? "true" : "false");
+        } else {
+          formData.append(key, String(value));
+        }
+      } else if (typeof value === "boolean") {
+        formData.append(key, value ? "true" : "false");
       }
     });
 
@@ -128,7 +136,15 @@ export const banknoteService = {
         // Never allow ownership transfer via client
         return;
       } else if (value !== null && value !== undefined && value !== "") {
-        formData.append(key, String(value));
+        if (typeof value === "object") {
+          formData.append(key, JSON.stringify(value));
+        } else if (typeof value === "boolean") {
+          formData.append(key, value ? "true" : "false");
+        } else {
+          formData.append(key, String(value));
+        }
+      } else if (typeof value === "boolean") {
+        formData.append(key, value ? "true" : "false");
       }
     });
 

@@ -23,6 +23,25 @@ export type Currency = typeof CURRENCIES[number];
 export const NOTE_TYPES = ['world', 'us'] as const;
 export type NoteType = typeof NOTE_TYPES[number];
 
+export const COMPOSITIONS = ['Paper', 'Polymer'] as const;
+export type Composition = typeof COMPOSITIONS[number];
+
+/** Signature metadata; signatureScan is a filename from signatureScans file field */
+export interface BanknoteSignature {
+  name: string;
+  title?: string;
+  /** PocketBase filename once uploaded into signatureScans */
+  signatureScan?: string;
+  /** Remote Numista URL (import only; not persisted as a PB file) */
+  signatureScanUrl?: string;
+}
+
+export interface BanknotePrinter {
+  authority: string;
+  city?: string;
+  country?: string;
+}
+
 export interface Banknote {
   id: string;
   collectionId: string;
@@ -59,6 +78,21 @@ export interface Banknote {
   isSpecimen: boolean;
   serialNumber: string;
   watermark: string;
+
+  // Numista / extended catalog fields
+  numistaId?: string;
+  composition?: Composition;
+  obvDescription?: string;
+  revDescription?: string;
+  obvEngraver?: string;
+  obvDesigner?: string;
+  revEngraver?: string;
+  revDesigner?: string;
+  printer?: BanknotePrinter | null;
+  numIssued?: number;
+  /** Inverse of Numista "Demonetized" */
+  inCirculation?: boolean;
+  signatures?: BanknoteSignature[];
   
   // Purchase info
   purchasePriceCurrency: Currency;
@@ -74,11 +108,27 @@ export interface Banknote {
   reverseImage: string; // File field - PocketBase returns filename
   obverseImageSize?: number; // File size in bytes (for storage tracking)
   reverseImageSize?: number; // File size in bytes (for storage tracking)
+  /** Multi-file signature scans; filenames paired via signatures[].signatureScan */
+  signatureScans?: string[];
   
   // Metadata
   created?: string;
   updated?: string;
 }
 
-export type BanknoteFormData = Omit<Banknote, 'id' | 'collectionId' | 'collectionName' | 'userId' | 'created' | 'updated' | 'obverseImage' | 'reverseImage' | 'obverseImageSize' | 'reverseImageSize'>;
+export type BanknoteFormData = Omit<
+  Banknote,
+  | 'id'
+  | 'collectionId'
+  | 'collectionName'
+  | 'userId'
+  | 'created'
+  | 'updated'
+  | 'obverseImage'
+  | 'reverseImage'
+  | 'obverseImageSize'
+  | 'reverseImageSize'
+  | 'signatureScans'
+>;
+
 
