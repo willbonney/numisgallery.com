@@ -414,7 +414,9 @@ export function BanknoteForm({
         }
         if (data.grade && PMG_GRADES.includes(data.grade as PmgGrade)) {
           handleGradeChange(data.grade);
-        } else if (data.isEpq !== undefined) {
+        }
+        // Apply extracted EPQ independently (grade change no longer auto-toggles EPQ)
+        if (data.isEpq !== undefined) {
           form.setFieldValue("isEpq", data.isEpq);
         }
         if (data.isSpecimen !== undefined)
