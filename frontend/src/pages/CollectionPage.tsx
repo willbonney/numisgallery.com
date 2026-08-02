@@ -196,7 +196,12 @@ export function CollectionPage({ isOwner = true }: CollectionPageProps) {
   const isPro = tier === "pro";
 
   const handleSubmit = async (
-    data: BanknoteFormData & { obverseImage?: File; reverseImage?: File }
+    data: BanknoteFormData & {
+      obverseImage?: File;
+      reverseImage?: File;
+      waterMarkImage?: File;
+      signatureScanFiles?: File[];
+    }
   ) => {
     try {
       if (editingBanknote) {

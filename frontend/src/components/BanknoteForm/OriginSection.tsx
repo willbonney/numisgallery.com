@@ -1,4 +1,14 @@
-import { Autocomplete, Box, Center, Group, SegmentedControl, SimpleGrid, TextInput, Tooltip } from '@mantine/core';
+import {
+  Autocomplete,
+  Box,
+  Center,
+  Checkbox,
+  Group,
+  SegmentedControl,
+  SimpleGrid,
+  TextInput,
+  Tooltip,
+} from '@mantine/core';
 import type { UseFormReturnType } from '@mantine/form';
 import { IconInfoCircle, IconWorld } from '@tabler/icons-react';
 import { COUNTRIES } from '../../data/countries';
@@ -116,6 +126,21 @@ export function OriginSection({ form, isProcessing, onCountryChange, onNoteTypeC
           {...form.getInputProps('pickNumber')}
         />
       </SimpleGrid>
+      <Group mt="md">
+        <Checkbox
+          label="Specimen"
+          description="Clears serial number when checked; unchecks if a serial is entered"
+          disabled={isProcessing}
+          checked={form.values.isSpecimen}
+          onChange={(event) => {
+            const checked = event.currentTarget.checked;
+            form.setFieldValue('isSpecimen', checked);
+            if (checked) {
+              form.setFieldValue('serialNumber', '');
+            }
+          }}
+        />
+      </Group>
     </>
   );
 }

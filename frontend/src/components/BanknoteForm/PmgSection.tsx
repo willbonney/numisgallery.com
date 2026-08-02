@@ -21,26 +21,15 @@ export function PmgSection({
   onCommentChange,
 }: PmgSectionProps) {
   return (
-      <Group>
-      <Stack gap="xs" mr={32}>
+    <Group align="flex-start">
+      <Stack gap="xs" mr={32} pt={4}>
         <Checkbox
           label="EPQ"
           disabled={isProcessing}
           {...form.getInputProps('isEpq', { type: 'checkbox' })}
         />
-        <Checkbox
-          label="Specimen"
-          disabled={isProcessing}
-          checked={form.values.isSpecimen}
-          onChange={(event) => {
-            form.setFieldValue('isSpecimen', event.currentTarget.checked);
-            if (event.currentTarget.checked) {
-              form.setFieldValue('serialNumber', '');
-            }
-          }}
-        />
       </Stack>
-      
+
       <Box style={{ flex: 1 }}>
         <Group justify="space-between" mb="xs">
           <Text size="sm" fw={500}>PMG Comments</Text>

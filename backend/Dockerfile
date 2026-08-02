@@ -17,7 +17,10 @@ RUN unzip /tmp/pb.zip -d /pb/ && \
 # Note: fly deploys may also mount hooks via volume; image includes defaults.
 COPY pb_hooks /pb/pb_hooks
 
+# Schema migrations — applied automatically on serve (not stored on the data volume)
+COPY pb_migrations /pb/pb_migrations
+
 EXPOSE 8090
 
-# Start PocketBase with hooks enabled (dir relative to --dir if mounted)
-CMD ["/pb/pocketbase", "serve", "--http=0.0.0.0:8090", "--dir=/pb/pb_data", "--hooksDir=/pb/pb_hooks"]
+# Start PocketBase with hooks + migrations enabled
+CMD ["/pb/pocketbase", "serve", "--http=0.0.0.0:8090", "--dir=/pb/pb_data", "--hooksDir=/pb/pb_hooks", "--migrationsDir=/pb/pb_migrations"]

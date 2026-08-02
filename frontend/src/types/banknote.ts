@@ -77,7 +77,10 @@ export interface Banknote {
   // Additional details
   isSpecimen: boolean;
   serialNumber: string;
+  /** Short watermark label (Details section) */
   watermark: string;
+  /** Full watermark description (e.g. from Numista) */
+  watermarkDescription?: string;
 
   // Numista / extended catalog fields
   numistaId?: string;
@@ -106,6 +109,7 @@ export interface Banknote {
   // Images (file fields in PocketBase)
   obverseImage: string; // File field - PocketBase returns filename
   reverseImage: string; // File field - PocketBase returns filename
+  waterMarkImage?: string; // Optional watermark scan filename
   obverseImageSize?: number; // File size in bytes (for storage tracking)
   reverseImageSize?: number; // File size in bytes (for storage tracking)
   /** Multi-file signature scans; filenames paired via signatures[].signatureScan */
@@ -126,9 +130,20 @@ export type BanknoteFormData = Omit<
   | 'updated'
   | 'obverseImage'
   | 'reverseImage'
+  | 'waterMarkImage'
   | 'obverseImageSize'
   | 'reverseImageSize'
   | 'signatureScans'
 >;
+
+/** Extra files attached at submit time (not part of form field values) */
+export type BanknoteSubmitFiles = {
+  obverseImage?: File;
+  reverseImage?: File;
+  waterMarkImage?: File;
+  /** Ordered to match signatures[]; empty slots omitted on upload */
+  signatureScanFiles?: File[];
+};
+
 
 

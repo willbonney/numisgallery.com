@@ -1,13 +1,18 @@
 import type { UseFormReturnType } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
-import type { BanknoteFormData } from '../../types/banknote';
+import type { BanknoteFormData, BanknoteSubmitFiles } from '../../types/banknote';
 import { checkStorageLimit, formatStorageSize } from '../../utils/storageTracking';
 
 interface UseBanknoteFormSubmissionProps {
   form: UseFormReturnType<BanknoteFormData>;
   isEditing: boolean;
-  onSubmit: (data: BanknoteFormData & { obverseImage?: File; reverseImage?: File }) => Promise<void>;
-  getFilesForSubmission: () => { obverseFileToUpload?: File; reverseFileToUpload?: File };
+  onSubmit: (data: BanknoteFormData & BanknoteSubmitFiles) => Promise<void>;
+  getFilesForSubmission: () => {
+    obverseFileToUpload?: File;
+    reverseFileToUpload?: File;
+    waterMarkFileToUpload?: File;
+    signatureScanFiles?: File[];
+  };
   getCommentsString: () => string;
   clearImages: () => void;
   resetComments: () => void;
@@ -77,7 +82,12 @@ export function useBanknoteFormSubmission({
     setSubmitting(true);
     setLoading(true, 'Saving banknote...');
     try {
-      const { obverseFileToUpload, reverseFileToUpload } = getFilesForSubmission();
+      const {
+        obverseFileToUpload,
+        reverseFileToUpload,
+        waterMarkFileToUpload,
+        signatureScanFiles,
+      } = getFilesForSubmission();
       const commentsString = getCommentsString();
 
       // Trim string fields
@@ -89,6 +99,7 @@ export function useBanknoteFormSubmission({
         'pickNumber',
         'serialNumber',
         'watermark',
+        'watermarkDescription',
         'numistaId',
         'obvDescription',
         'revDescription',
@@ -106,7 +117,7 @@ export function useBanknoteFormSubmission({
         cleanedValues = validateAndTransformWorldNote(cleanedValues);
       }
 
-      // Strip remote-only signature URL keys before save (PB stores filename refs)
+      // Strip remote-only signature URL keys before save
       const signaturesForSave = (cleanedValues.signatures || []).map(
         ({ name, title, signatureScan }) => ({
           name: (name || '').trim(),
@@ -125,6 +136,7 @@ export function useBanknoteFormSubmission({
         pmgCert: cleanedValues.pmgCert || '',
         serialNumber: cleanedValues.serialNumber || '',
         watermark: cleanedValues.watermark || '',
+        watermarkDescription: cleanedValues.watermarkDescription || '',
         dateOfPurchase: cleanedValues.dateOfPurchase || '',
         pmgComments: commentsString,
         numistaId: cleanedValues.numistaId || '',
@@ -138,7 +150,11 @@ export function useBanknoteFormSubmission({
       };
 
       // Check storage before upload
-      const newFileSize = (obverseFileToUpload?.size || 0) + (reverseFileToUpload?.size || 0);
+      const newFileSize =
+        (obverseFileToUpload?.size || 0) +
+        (reverseFileToUpload?.size || 0) +
+        (waterMarkFileToUpload?.size || 0) +
+        (signatureScanFiles || []).reduce((sum, f) => sum + (f?.size || 0), 0);
       if (newFileSize > 0) {
         const storageCheck = await checkStorageLimit(newFileSize);
         if (!storageCheck.allowed) {
@@ -150,6 +166,9 @@ export function useBanknoteFormSubmission({
         ...finalValues,
         ...(obverseFileToUpload && { obverseImage: obverseFileToUpload }),
         ...(reverseFileToUpload && { reverseImage: reverseFileToUpload }),
+        ...(waterMarkFileToUpload && { waterMarkImage: waterMarkFileToUpload }),
+        ...(signatureScanFiles &&
+          signatureScanFiles.length > 0 && { signatureScanFiles }),
       });
 
       notifications.show({
@@ -178,4 +197,3 @@ export function useBanknoteFormSubmission({
 
   return { handleSubmit };
 }
-

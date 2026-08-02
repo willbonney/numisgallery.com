@@ -13,8 +13,22 @@ export function DetailsSection({ form, isProcessing }: DetailsSectionProps) {
       <TextInput
         label="Serial Number"
         placeholder="A12345678B"
-        disabled={isProcessing || form.values.isSpecimen}
-        {...form.getInputProps('serialNumber')}
+        disabled={isProcessing}
+        description={
+          form.values.isSpecimen
+            ? 'Entering a serial will uncheck Specimen'
+            : undefined
+        }
+        value={form.values.serialNumber}
+        onChange={(event) => {
+          const value = event.currentTarget.value;
+          form.setFieldValue('serialNumber', value);
+          // A real serial means this is not a specimen
+          if (value.trim() && form.values.isSpecimen) {
+            form.setFieldValue('isSpecimen', false);
+          }
+        }}
+        error={form.errors.serialNumber}
       />
       <TextInput
         label="Watermark"

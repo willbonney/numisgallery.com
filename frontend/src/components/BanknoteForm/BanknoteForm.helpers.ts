@@ -338,6 +338,7 @@ export type NumistaImportResult = {
   yearOfIssueEnd?: number;
   composition?: "Paper" | "Polymer";
   watermark?: string;
+  watermarkDescription?: string;
   obvDescription?: string;
   revDescription?: string;
   obvEngraver?: string;
@@ -352,8 +353,49 @@ export type NumistaImportResult = {
     title?: string;
     signatureScan?: string;
     signatureScanUrl?: string;
+    signatureScanDataUrl?: string;
   }>;
+  /** Catalog photos from #fiche_photo / .coin_pic (obverse first) */
+  obverseImageUrl?: string;
+  reverseImageUrl?: string;
+  /** Watermark section sibling .coin_pic */
+  waterMarkImageUrl?: string;
+  /** Server-side downloaded (CF-bypassed) image data URLs */
+  obverseImageDataUrl?: string;
+  reverseImageDataUrl?: string;
+  waterMarkImageDataUrl?: string;
 };
+
+/**
+ * Convert a server-provided data URL into a File for form upload.
+ * Numista CDN is CF-protected — never proxy those URLs from the browser.
+ */
+export async function imageSourceToFile(
+  source: string,
+  filename: string
+): Promise<File> {
+  const { dataUrlToFile } = await import("../../utils/fileHelpers");
+  if (source.startsWith("data:image/")) {
+    return dataUrlToFile(source, filename);
+  }
+  // Only allow non-Numista remotes through the proxy (e.g. future sources)
+  if (/numista\.com/i.test(source)) {
+    throw new Error(
+      "Numista image was not downloaded by the scraper. Re-import or upload manually."
+    );
+  }
+  const dataUrl = await proxyImage(source);
+  return dataUrlToFile(dataUrl, filename);
+}
+
+/** Only use data URLs returned by the scraper for Numista assets. */
+export function numistaDataUrlOrNull(
+  dataUrl?: string,
+  _remoteUrl?: string
+): string | null {
+  if (dataUrl && dataUrl.startsWith("data:image/")) return dataUrl;
+  return null;
+}
 
 function numistaStageToMessage(stage: string, progressMessage?: string): string {
   const map: Record<string, string> = {
@@ -389,7 +431,7 @@ export async function importFromNumista(
   url: string,
   setImporting: (value: boolean) => void,
   setLoading: (loading: boolean, message?: string) => void,
-  onImported: (data: NumistaImportResult) => void
+  onImported: (data: NumistaImportResult) => void | Promise<void>
 ) {
   const trimmed = url.trim();
   if (!trimmed) {
@@ -531,7 +573,7 @@ export async function importFromNumista(
     }
 
     setLoading(true, "Applying details to form...");
-    onImported(result);
+    await onImported(result);
 
     notifications.show({
       title: "Numista Import Complete",

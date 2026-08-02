@@ -16,14 +16,22 @@ import { getCountryCode } from "../data/countries";
 import { useAuth } from "../hooks/useAuth";
 import { useBanknoteImages } from "../hooks/useBanknoteImages";
 import { usePmgComments } from "../hooks/usePmgComments";
-import type { Banknote, BanknoteFormData, PmgGrade } from "../types/banknote";
+import type {
+  Banknote,
+  BanknoteFormData,
+  BanknoteSubmitFiles,
+  PmgGrade,
+} from "../types/banknote";
 import { PMG_GRADES } from "../types/banknote";
 import {
   extractDataFromImages as extractDataFromImagesHelper,
   importFromNumista as importFromNumistaHelper,
+  imageSourceToFile,
+  numistaDataUrlOrNull,
   selectNumberInputOnFocus,
   type NumistaImportResult,
 } from "./BanknoteForm/BanknoteForm.helpers";
+import { AdditionalDetailsSection } from "./BanknoteForm/AdditionalDetailsSection";
 import { DenominationSection } from "./BanknoteForm/DenominationSection";
 import { DetailsSection } from "./BanknoteForm/DetailsSection";
 import { DisplaySettingsSection } from "./BanknoteForm/DisplaySettingsSection";
@@ -38,11 +46,9 @@ import { CollapsibleSectionHeader } from "./CollapsibleSectionHeader";
 
 interface BanknoteFormProps {
   banknote?: Banknote;
-  onSubmit: (
-    data: BanknoteFormData & { obverseImage?: File; reverseImage?: File }
-  ) => Promise<void>;
+  onSubmit: (data: BanknoteFormData & BanknoteSubmitFiles) => Promise<void>;
   onCancel: () => void;
-  currentFeaturedCount?: number; // Number of currently featured banknotes (excluding the one being edited)
+  currentFeaturedCount?: number;
 }
 
 export function BanknoteForm({
@@ -55,34 +61,33 @@ export function BanknoteForm({
   const { setLoading } = useLoading();
   const isEditing = !!banknote;
 
-  // Load collapsible section states from localStorage
   const loadSectionsState = () => {
     const defaults = {
       images: true,
-      details: true, // Always expanded by default
+      details: true,
+      additionalDetails: false,
     };
 
     const saved = localStorage.getItem("banknoteFormSectionsOpen");
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Ensure details is always true (expanded) by default
         return {
           ...defaults,
           ...parsed,
-          details: true, // Force details to always be expanded
+          details: true,
+          // Keep additionalDetails collapsed by default unless user opened it
+          additionalDetails: parsed.additionalDetails === true,
         };
       } catch {
-        // If parsing fails, return defaults
+        // ignore
       }
     }
     return defaults;
   };
 
-  // Collapsible section states
   const [sectionsOpen, setSectionsOpen] = useState(loadSectionsState);
 
-  // Save to localStorage whenever sections change
   useEffect(() => {
     localStorage.setItem(
       "banknoteFormSectionsOpen",
@@ -97,10 +102,8 @@ export function BanknoteForm({
     }));
   };
 
-  // Image management hook
   const imageHandlers = useBanknoteImages({ banknote, isEditing, user });
 
-  // PMG Comments hook
   const {
     pmgComments,
     handleAddComment,
@@ -118,6 +121,20 @@ export function BanknoteForm({
   );
   const [importingNumista, setImportingNumista] = useState(false);
 
+  // Watermark image (file field separate from watermark text)
+  const [waterMarkFile, setWaterMarkFile] = useState<File | null>(null);
+  const [waterMarkPreviewUrl, setWaterMarkPreviewUrl] = useState<string | null>(
+    null
+  );
+
+  // Signature scan files aligned with form.values.signatures indices
+  const [signatureFiles, setSignatureFiles] = useState<(File | null)[]>(() =>
+    (banknote?.signatures || []).map(() => null)
+  );
+  const [signaturePreviewUrls, setSignaturePreviewUrls] = useState<
+    (string | null)[]
+  >(() => (banknote?.signatures || []).map(() => null));
+
   const form = useForm<BanknoteFormData>({
     initialValues: {
       noteType: banknote?.noteType || "world",
@@ -134,17 +151,12 @@ export function BanknoteForm({
       yearOfIssueEnd: banknote?.yearOfIssueEnd,
       pmgCert: banknote?.pmgCert || "",
       grade: banknote?.grade || "65",
-      pmgComments: "", // Managed by pmgComments state array
-      isEpq:
-        banknote?.isEpq ??
-        (() => {
-          const initialGrade = banknote?.grade || "65";
-          const highGrades = ["65", "66", "67", "68", "69", "70"];
-          return highGrades.includes(initialGrade);
-        })(),
+      pmgComments: "",
+      isEpq: banknote?.isEpq ?? false,
       isSpecimen: banknote?.isSpecimen || false,
       serialNumber: banknote?.serialNumber || "",
       watermark: banknote?.watermark || "",
+      watermarkDescription: banknote?.watermarkDescription || "",
       numistaId: banknote?.numistaId || "",
       composition: banknote?.composition,
       obvDescription: banknote?.obvDescription || "",
@@ -168,19 +180,17 @@ export function BanknoteForm({
   const handleNoteTypeChange = (value: "world" | "us") => {
     form.setFieldValue("noteType", value);
     if (value === "us") {
-      // For US notes, set defaults
       form.setFieldValue("currency", "USD");
       form.setFieldValue("currencyCode", "USD");
       form.setFieldValue("countryCode", "us");
     } else {
-      // For world notes, clear US-specific defaults
       if (form.values.currency === "USD" && form.values.country === "") {
         form.setFieldValue("currency", "");
       }
     }
   };
 
-  const applyNumistaImport = (data: NumistaImportResult) => {
+  const applyNumistaImport = async (data: NumistaImportResult) => {
     if (data.noteType) {
       handleNoteTypeChange(data.noteType);
     }
@@ -221,7 +231,31 @@ export function BanknoteForm({
       form.setFieldValue("yearOfIssueSingle", data.yearOfIssueSingle);
     }
 
-    if (data.watermark) form.setFieldValue("watermark", data.watermark);
+    // Numista Watermark <p> text → description (+ short field for Details)
+    const wmText = data.watermarkDescription || data.watermark;
+    if (wmText) {
+      form.setFieldValue("watermarkDescription", wmText);
+      form.setFieldValue("watermark", wmText);
+    }
+
+    // Only use scraper-downloaded data URLs (browser cannot fetch Numista CDN)
+    const waterMarkData = numistaDataUrlOrNull(
+      data.waterMarkImageDataUrl,
+      data.waterMarkImageUrl
+    );
+    if (waterMarkData) {
+      try {
+        const file = await imageSourceToFile(
+          waterMarkData,
+          "watermark-numista.jpg"
+        );
+        setWaterMarkFile(file);
+        setWaterMarkPreviewUrl(URL.createObjectURL(file));
+      } catch (err) {
+        console.warn("Failed to load watermark image:", err);
+      }
+    }
+
     if (data.composition) form.setFieldValue("composition", data.composition);
     if (data.obvDescription)
       form.setFieldValue("obvDescription", data.obvDescription);
@@ -236,6 +270,7 @@ export function BanknoteForm({
     if (data.inCirculation !== undefined) {
       form.setFieldValue("inCirculation", data.inCirculation);
     }
+
     if (data.signatures && data.signatures.length > 0) {
       form.setFieldValue(
         "signatures",
@@ -246,11 +281,100 @@ export function BanknoteForm({
           signatureScanUrl: s.signatureScanUrl,
         }))
       );
+      setSignatureFiles(data.signatures.map(() => null));
+      setSignaturePreviewUrls(
+        data.signatures.map((s) =>
+          numistaDataUrlOrNull(s.signatureScanDataUrl, s.signatureScanUrl)
+        )
+      );
+
+      for (let i = 0; i < data.signatures.length; i++) {
+        const source = numistaDataUrlOrNull(
+          data.signatures[i].signatureScanDataUrl,
+          data.signatures[i].signatureScanUrl
+        );
+        if (!source) continue;
+        try {
+          const file = await imageSourceToFile(
+            source,
+            `signature-${i + 1}.jpg`
+          );
+          setSignatureFiles((prev) => {
+            const next = [...prev];
+            next[i] = file;
+            return next;
+          });
+          setSignaturePreviewUrls((prev) => {
+            const next = [...prev];
+            next[i] = URL.createObjectURL(file);
+            return next;
+          });
+        } catch (err) {
+          console.warn("Failed to load signature image:", err);
+        }
+      }
+    }
+
+    // Expand Additional Details after a successful import
+    setSectionsOpen((prev: typeof sectionsOpen) => ({
+      ...prev,
+      additionalDetails: true,
+      images: true,
+    }));
+
+    // Catalog photos — server must have already downloaded them as data URLs
+    const obverseData = numistaDataUrlOrNull(
+      data.obverseImageDataUrl,
+      data.obverseImageUrl
+    );
+    const reverseData = numistaDataUrlOrNull(
+      data.reverseImageDataUrl,
+      data.reverseImageUrl
+    );
+
+    if (obverseData || reverseData) {
+      setLoading(true, "Loading catalog photos from Numista...");
+      try {
+        if (obverseData) {
+          const file = await imageSourceToFile(
+            obverseData,
+            "obverse-numista.jpg"
+          );
+          await imageHandlers.handleObverseFileUpload(file);
+        }
+        if (reverseData) {
+          const file = await imageSourceToFile(
+            reverseData,
+            "reverse-numista.jpg"
+          );
+          await imageHandlers.handleReverseFileUpload(file);
+        }
+      } catch (err) {
+        console.error("Failed to load Numista photos:", err);
+        const { notifications } = await import("@mantine/notifications");
+        notifications.show({
+          title: "Photos not loaded",
+          message:
+            err instanceof Error
+              ? err.message
+              : "Could not attach Numista catalog photos. Try uploading manually.",
+          color: "yellow",
+        });
+      }
+    } else if (data.obverseImageUrl || data.reverseImageUrl) {
+      const { notifications } = await import("@mantine/notifications");
+      notifications.show({
+        title: "Catalog photos unavailable",
+        message:
+          "Numista blocked image download. You can still save details and upload photos manually.",
+        color: "yellow",
+        autoClose: 8000,
+      });
     }
   };
 
   const handleNumistaImport = () => {
-    importFromNumistaHelper(
+    void importFromNumistaHelper(
       numistaUrl,
       setImportingNumista,
       setLoading,
@@ -264,12 +388,10 @@ export function BanknoteForm({
       imageHandlers.reverseState.originalUrl,
       setExtractingData,
       (data) => {
-        // Handle note type - use handleNoteTypeChange to ensure SegmentedControl updates
         if (data.noteType) {
           handleNoteTypeChange(data.noteType);
         }
 
-        // Handle country/authority based on note type
         if (data.noteType === "world" && data.country) {
           form.setFieldValue("country", data.country);
           const code = getCountryCode(data.country);
@@ -280,7 +402,6 @@ export function BanknoteForm({
             form.setFieldValue("authority", data.authority);
           }
         } else if (data.noteType === "us") {
-          // Set country for US notes (extracted data now includes it)
           if (data.country) {
             form.setFieldValue("country", data.country);
           }
@@ -314,8 +435,12 @@ export function BanknoteForm({
 
         if (data.faceValue) form.setFieldValue("faceValue", data.faceValue);
         if (data.currency) form.setFieldValue("currency", data.currency);
-        if (data.serialNumber)
+        if (data.serialNumber) {
           form.setFieldValue("serialNumber", data.serialNumber);
+          if (data.serialNumber.trim()) {
+            form.setFieldValue("isSpecimen", false);
+          }
+        }
         if (data.watermark) form.setFieldValue("watermark", data.watermark);
 
         if (data.pmgComments && data.pmgComments.length > 0) {
@@ -343,22 +468,110 @@ export function BanknoteForm({
   const handleGradeChange = (value: string | null) => {
     if (value) {
       form.setFieldValue("grade", value as PmgGrade);
-      // Automatically set EPQ for grades 65-70
-      const highGrades = ["65", "66", "67", "68", "69", "70"];
-      form.setFieldValue("isEpq", highGrades.includes(value));
+      // EPQ is not auto-checked — user opts in manually
     }
   };
 
-  // Form submission hook
+  const handleWaterMarkUpload = (file: File) => {
+    setWaterMarkFile(file);
+    setWaterMarkPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const handleWaterMarkClear = () => {
+    setWaterMarkFile(null);
+    setWaterMarkPreviewUrl(null);
+  };
+
+  const handleAddSignature = () => {
+    const next = [
+      ...(form.values.signatures || []),
+      { name: "", title: "", signatureScan: "" },
+    ];
+    form.setFieldValue("signatures", next);
+    setSignatureFiles((prev) => [...prev, null]);
+    setSignaturePreviewUrls((prev) => [...prev, null]);
+  };
+
+  const handleRemoveSignature = (index: number) => {
+    form.setFieldValue(
+      "signatures",
+      (form.values.signatures || []).filter((_, i) => i !== index)
+    );
+    setSignatureFiles((prev) => prev.filter((_, i) => i !== index));
+    setSignaturePreviewUrls((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSignatureFileUpload = (index: number, file: File) => {
+    setSignatureFiles((prev) => {
+      const next = [...prev];
+      while (next.length <= index) next.push(null);
+      next[index] = file;
+      return next;
+    });
+    setSignaturePreviewUrls((prev) => {
+      const next = [...prev];
+      while (next.length <= index) next.push(null);
+      next[index] = URL.createObjectURL(file);
+      return next;
+    });
+  };
+
+  const handleSignatureFileClear = (index: number) => {
+    setSignatureFiles((prev) => {
+      const next = [...prev];
+      next[index] = null;
+      return next;
+    });
+    setSignaturePreviewUrls((prev) => {
+      const next = [...prev];
+      next[index] = null;
+      return next;
+    });
+    const sigs = [...(form.values.signatures || [])];
+    if (sigs[index]) {
+      sigs[index] = {
+        ...sigs[index],
+        signatureScan: "",
+        signatureScanUrl: undefined,
+      };
+      form.setFieldValue("signatures", sigs);
+    }
+  };
+
+  const getFilesForSubmission = () => {
+    const base = imageHandlers.getFilesForSubmission();
+    const signatureScanFiles = signatureFiles.filter(
+      (f): f is File => f instanceof File
+    );
+    return {
+      ...base,
+      waterMarkFileToUpload: waterMarkFile || undefined,
+      signatureScanFiles:
+        signatureScanFiles.length > 0 ? signatureScanFiles : undefined,
+    };
+  };
+
+  const resetExtra = () => {
+    setNumistaUrl("");
+    setWaterMarkFile(null);
+    setWaterMarkPreviewUrl(null);
+    setSignatureFiles([]);
+    setSignaturePreviewUrls([]);
+    setSectionsOpen((prev: typeof sectionsOpen) => ({
+      ...prev,
+      additionalDetails: false,
+    }));
+  };
+
   const { handleSubmit } = useBanknoteFormSubmission({
     form,
     isEditing,
     onSubmit,
-    getFilesForSubmission: imageHandlers.getFilesForSubmission,
+    getFilesForSubmission,
     getCommentsString,
     clearImages: imageHandlers.clearImages,
     resetComments,
-    onResetExtra: () => setNumistaUrl(""),
+    onResetExtra: resetExtra,
     setSubmitting,
     setLoading,
   });
@@ -499,7 +712,30 @@ export function BanknoteForm({
             </Stack>
           </Collapse>
 
-          {/* Actions */}
+          <CollapsibleSectionHeader
+            title="Additional Details"
+            isOpen={sectionsOpen.additionalDetails}
+            onToggle={() => toggleSection("additionalDetails")}
+          />
+          <Collapse in={sectionsOpen.additionalDetails}>
+            <AdditionalDetailsSection
+              form={form}
+              isProcessing={isProcessing}
+              banknote={banknote}
+              waterMarkFile={waterMarkFile}
+              waterMarkPreviewUrl={waterMarkPreviewUrl}
+              onWaterMarkUpload={handleWaterMarkUpload}
+              onWaterMarkClear={handleWaterMarkClear}
+              signatureFiles={signatureFiles}
+              signaturePreviewUrls={signaturePreviewUrls}
+              onSignatureFileUpload={handleSignatureFileUpload}
+              onSignatureFileClear={handleSignatureFileClear}
+              onAddSignature={handleAddSignature}
+              onRemoveSignature={handleRemoveSignature}
+              onNumberInputFocus={handleNumberInputFocus}
+            />
+          </Collapse>
+
           <Group justify="flex-end" mt="lg">
             <Button
               variant="default"

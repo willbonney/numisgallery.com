@@ -59,7 +59,7 @@ export function NumistaImportSection({
             disabled={isProcessing || !url.trim()}
             style={{ flexShrink: 0 }}
           >
-            Import Details from Numista
+            Import
           </Button>
         </Group>
       </Stack>
