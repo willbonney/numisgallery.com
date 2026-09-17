@@ -1,0 +1,12 @@
+{
+  "name": "numisgallery-www-redirect",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-17",
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "www.numisgallery.com/*",
+      "zone_id": "cceaf202e8a0d057ba513d4572558af4"
+    }
+  ]
+}
