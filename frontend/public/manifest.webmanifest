@@ -1,0 +1,26 @@
+{
+  "name": "NumisGallery",
+  "short_name": "NumisGallery",
+  "description": "Catalog PMG-certified banknotes, extract details with AI, and share a public paper money gallery.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#121a12",
+  "theme_color": "#4a8a4a",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+# NumisGallery
+
+NumisGallery (https://numisgallery.com) is a web application for cataloging, organizing, and showcasing banknote collections. It is operated by Happy Haiku LLC.
+
+## Product
+
+Collectors and dealers use NumisGallery to:
+
+- Catalog PMG-certified banknotes by certification number and grade
+- Fetch high-resolution obverse and reverse images from PMG
+- Auto-extract country, denomination, serial numbers, and other details with AI
+- Organize world banknotes (Pick numbers) and US currency (Friedberg numbers)
+- Export collections to CSV or PDF
+- Share a public gallery of paper money
+
+## Public pages
+
+- Home: https://numisgallery.com/
+- Community gallery: https://numisgallery.com/community
+- Pricing: https://numisgallery.com/pricing
+- Sign in: https://numisgallery.com/login
+- Terms: https://numisgallery.com/terms-and-conditions
+- Privacy: https://numisgallery.com/privacy-policy
+
+Free accounts include up to 50 banknotes. Pro is $4.99/month or $49/year.

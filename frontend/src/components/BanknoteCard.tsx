@@ -113,7 +113,7 @@ export function BanknoteCard({ banknote, onClick }: BanknoteCardProps) {
                   banknote.obverseImage,
                   banknote.isFeatured ? "1400x0" : "800x0"
                 )}
-                alt={`${banknote.country} ${banknote.faceValue} ${banknote.currency} obverse`}
+                alt={`${banknote.country} ${banknote.faceValue} ${banknote.currency} banknote, obverse`}
                 className={classes.image}
                 style={{
                   opacity: obverseLoading ? 0 : 1,
@@ -148,7 +148,7 @@ export function BanknoteCard({ banknote, onClick }: BanknoteCardProps) {
                   banknote.reverseImage,
                   banknote.isFeatured ? "1400x0" : "800x0"
                 )}
-                alt={`${banknote.country} ${banknote.faceValue} ${banknote.currency} reverse`}
+                alt={`${banknote.country} ${banknote.faceValue} ${banknote.currency} banknote, reverse`}
                 className={classes.image}
                 style={{
                   opacity: reverseLoading ? 0 : 1,

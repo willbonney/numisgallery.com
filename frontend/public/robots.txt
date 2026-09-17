@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /settings
+Disallow: /your-banknotes
+Disallow: /subscription
+
+Sitemap: https://numisgallery.com/sitemap.xml

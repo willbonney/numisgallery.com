@@ -1,11 +1,20 @@
-import { Box, List, Modal, Paper, Stack, Text, Title } from "@mantine/core";
+import {
+  Box,
+  Container,
+  List,
+  Modal,
+  Paper,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
 
 interface PrivacyPolicyProps {
-  opened: boolean;
-  onClose: () => void;
+  opened?: boolean;
+  onClose?: () => void;
 }
 
-export function PrivacyPolicy({ opened, onClose }: PrivacyPolicyProps) {
+export function PrivacyPolicy({ opened = true, onClose }: PrivacyPolicyProps) {
   const content = (
     <Stack gap="md">
       <Text size="sm" c="dimmed">
@@ -287,11 +296,13 @@ export function PrivacyPolicy({ opened, onClose }: PrivacyPolicyProps) {
   }
 
   return (
-    <Paper p="xl" withBorder>
-      <Title order={2} mb="md">
-        Privacy Policy
-      </Title>
-      <Box style={{ maxHeight: "none" }}>{content}</Box>
-    </Paper>
+    <Container size="md" py="xl">
+      <Paper p="xl" withBorder>
+        <Title order={1} mb="md">
+          Privacy Policy
+        </Title>
+        <Box style={{ maxHeight: "none" }}>{content}</Box>
+      </Paper>
+    </Container>
   );
 }

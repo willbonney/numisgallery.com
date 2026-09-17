@@ -1,12 +1,21 @@
-import { Box, List, Modal, Paper, Stack, Text, Title } from "@mantine/core";
+import {
+  Box,
+  Container,
+  List,
+  Modal,
+  Paper,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
 
 interface TermsAndConditionsProps {
-  opened: boolean;
-  onClose: () => void;
+  opened?: boolean;
+  onClose?: () => void;
 }
 
 export function TermsAndConditions({
-  opened,
+  opened = true,
   onClose,
 }: TermsAndConditionsProps) {
   const content = (
@@ -537,11 +546,13 @@ export function TermsAndConditions({
   }
 
   return (
-    <Paper p="xl" withBorder>
-      <Title order={2} mb="md">
-        Terms and Conditions
-      </Title>
-      <Box style={{ maxHeight: "none" }}>{content}</Box>
-    </Paper>
+    <Container size="md" py="xl">
+      <Paper p="xl" withBorder>
+        <Title order={1} mb="md">
+          Terms and Conditions
+        </Title>
+        <Box style={{ maxHeight: "none" }}>{content}</Box>
+      </Paper>
+    </Container>
   );
 }

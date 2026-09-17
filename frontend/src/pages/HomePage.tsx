@@ -1,4 +1,5 @@
 import {
+  Accordion,
   Anchor,
   Box,
   Button,
@@ -20,6 +21,7 @@ import {
 import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { faqs } from "../seo";
 import { banknoteService } from "../services/banknotes";
 import classes from "./HomePage.module.css";
 
@@ -108,9 +110,9 @@ export function HomePage() {
           </Title>
 
           <Text size="lg" ta="center" c="dimmed" maw={640} lh={1.65}>
-            NumisGallery helps casual collectors and professional dealers
-            manage PMG-certified notes, extract data with AI, and share a
-            polished gallery — all in one place.
+            NumisGallery is a digital catalog for paper money collectors. Manage
+            PMG-certified banknotes, world notes, and US currency, extract data
+            with AI, and share a public gallery — all in one place.
           </Text>
 
           {(user && banknoteCount === 0) || !user ? (
@@ -197,6 +199,24 @@ export function HomePage() {
             </Fragment>
           ))}
         </div>
+
+        <Stack gap="md" maw={720} mx="auto" w="100%">
+          <Title order={2} ta="center" size="h3">
+            Frequently asked questions
+          </Title>
+          <Accordion variant="separated" radius="md">
+            {faqs.map((faq) => (
+              <Accordion.Item key={faq.question} value={faq.question}>
+                <Accordion.Control>{faq.question}</Accordion.Control>
+                <Accordion.Panel>
+                  <Text size="sm" c="dimmed" lh={1.7}>
+                    {faq.answer}
+                  </Text>
+                </Accordion.Panel>
+              </Accordion.Item>
+            ))}
+          </Accordion>
+        </Stack>
 
         <Box>
           <Text size="sm" c="dimmed" ta="center">

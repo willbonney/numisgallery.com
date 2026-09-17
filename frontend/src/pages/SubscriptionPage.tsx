@@ -255,7 +255,8 @@ export function SubscriptionPage() {
             maw={600}
             style={{ wordWrap: "break-word" }}
           >
-            Select the perfect plan for your collection needs
+            Free and Pro plans for cataloging PMG-certified banknotes, world
+            paper money, and US currency
           </Text>
         </Stack>
 

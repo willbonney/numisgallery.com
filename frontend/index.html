@@ -3,15 +3,182 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/logo.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <title>NumisGallery</title>
+    <meta name="theme-color" content="#4a8a4a" />
+    <meta name="color-scheme" content="dark light" />
+    <meta
+      name="description"
+      content="Free web app for paper money collectors. Catalog PMG-certified banknotes, auto-fill details with AI, and share a public gallery of world and US notes."
+    />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
+    <meta name="googlebot" content="index, follow" />
+    <meta name="author" content="Happy Haiku LLC" />
+    <meta name="application-name" content="NumisGallery" />
+    <link rel="canonical" href="https://numisgallery.com/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="NumisGallery" />
+    <meta property="og:locale" content="en_US" />
+    <meta
+      property="og:title"
+      content="NumisGallery — Catalog Your Banknote Collection"
+    />
+    <meta
+      property="og:description"
+      content="Free web app for paper money collectors. Catalog PMG-certified banknotes, auto-fill details with AI, and share a public gallery of world and US notes."
+    />
+    <meta property="og:url" content="https://numisgallery.com/" />
+    <meta property="og:image" content="https://numisgallery.com/og-image.png" />
+    <meta
+      property="og:image:alt"
+      content="NumisGallery — Catalog Your Banknote Collection"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="NumisGallery — Catalog Your Banknote Collection"
+    />
+    <meta
+      name="twitter:description"
+      content="Free web app for paper money collectors. Catalog PMG-certified banknotes, auto-fill details with AI, and share a public gallery of world and US notes."
+    />
+    <meta
+      name="twitter:image"
+      content="https://numisgallery.com/og-image.png"
+    />
+
+    <title>NumisGallery — Catalog Your Banknote Collection</title>
+    <script type="application/ld+json" id="numisgallery-ld-json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://numisgallery.com/#organization",
+            "name": "NumisGallery",
+            "legalName": "Happy Haiku LLC",
+            "url": "https://numisgallery.com",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://numisgallery.com/apple-touch-icon.png"
+            },
+            "sameAs": ["https://discord.gg/mfcar4wYuC"]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://numisgallery.com/#website",
+            "url": "https://numisgallery.com",
+            "name": "NumisGallery",
+            "description": "Free web app for paper money collectors. Catalog PMG-certified banknotes, auto-fill details with AI, and share a public gallery of world and US notes.",
+            "publisher": { "@id": "https://numisgallery.com/#organization" },
+            "inLanguage": "en-US"
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "https://numisgallery.com/#app",
+            "name": "NumisGallery",
+            "url": "https://numisgallery.com",
+            "applicationCategory": "LifestyleApplication",
+            "operatingSystem": "Any",
+            "browserRequirements": "Requires JavaScript",
+            "description": "Free web app for paper money collectors. Catalog PMG-certified banknotes, auto-fill details with AI, and share a public gallery of world and US notes.",
+            "offers": {
+              "@type": "AggregateOffer",
+              "lowPrice": "0",
+              "highPrice": "4.99",
+              "priceCurrency": "USD",
+              "offerCount": 2
+            },
+            "publisher": { "@id": "https://numisgallery.com/#organization" }
+          }
+        ]
+      }
+    </script>
+    <script type="application/ld+json" id="numisgallery-faq-json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is NumisGallery?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "NumisGallery is a free web app for cataloging, organizing, and showcasing banknote collections. Collectors and dealers use it to store PMG-certified notes, world paper money, and US currency in a shareable digital gallery."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I catalog PMG-certified banknotes?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Enter a PMG certification number and grade to fetch high-resolution obverse and reverse images plus certification details, then save the note to your collection."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does NumisGallery work for world banknotes and US currency?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. World notes can be cataloged with Pick numbers, country, and denomination. US notes support Friedberg numbers, issuing authority, and Federal Reserve district details."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is NumisGallery free?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "The free plan includes up to 50 banknotes, PMG image fetching, AI data extraction, and CSV export. Pro unlocks unlimited notes, more monthly fetches, extra storage, and PDF export."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I share my banknote collection online?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Mark notes as public and share a gallery link so other collectors can browse your paper money collection without needing an account."
+            }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <main>
+        <h1>NumisGallery — Catalog Your Banknote Collection</h1>
+        <p>
+          NumisGallery is a free web app for paper money collectors. Catalog
+          PMG-certified banknotes, auto-fill details with AI, and share a public
+          gallery of world and US notes.
+        </p>
+        <nav>
+          <ul>
+            <li><a href="/community">Community banknote gallery</a></li>
+            <li><a href="/pricing">Pricing</a></li>
+            <li><a href="/login">Sign in</a></li>
+            <li><a href="/terms-and-conditions">Terms and Conditions</a></li>
+            <li><a href="/privacy-policy">Privacy Policy</a></li>
+          </ul>
+        </nav>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
