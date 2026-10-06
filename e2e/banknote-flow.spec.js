@@ -813,10 +813,17 @@ test.describe("Banknote Flow E2E", () => {
         timeout: 120000,
       }); // Increased to 120s
     } catch {
-      // Loading overlay might not appear
-      await page.waitForTimeout(100000); // AI extraction can take up to 90s, give it extra time
+      // Loading overlay selectors vary. The response listener is the signal.
     }
-    await page.waitForLoadState("networkidle", { timeout: 10000 });
+
+    const extractionDeadline = Date.now() + 120000;
+    while (!extractionCalled && Date.now() < extractionDeadline) {
+      await page.waitForTimeout(250);
+    }
+    if (!extractionCalled) {
+      throw new Error("Timed out waiting for /api/extract-pmg-data");
+    }
+    await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
 
     const extractEndTime = Date.now();
     const extractDuration = extractEndTime - extractStartTime;
