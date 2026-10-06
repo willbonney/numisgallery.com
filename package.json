@@ -16,6 +16,8 @@
     "update:pocketbase": "node scripts/update-pocketbase.js",
     "update:hermes": "cd ../hermes && node scripts/update-hermes.js",
     "update:all": "npm run update:pocketbase && npm run update:hermes",
+    "test": "npm run test --prefix frontend && npm test --prefix backend/webhooks && npm test --prefix ../hermes/scraper && node --test redirect-www/test/redirect.test.mjs",
+    "test:unit": "npm test",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",

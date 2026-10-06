@@ -35,13 +35,40 @@ export function getEffectiveTier(
   subscription: Subscription | null | undefined
 ): SubscriptionTier {
   if (!subscription) return "free";
+  // Match PocketBase hooks: a missing status is treated as active
+  const status = subscription.status || "active";
   if (
     subscription.tier === "pro" &&
-    (subscription.status === "active" || subscription.status === "trialing")
+    (status === "active" || status === "trialing")
   ) {
     return "pro";
   }
   return "free";
+}
+
+export function tierLimits(tier: SubscriptionTier) {
+  switch (tier) {
+    case "free":
+      return {
+        maxBanknotes: 50,
+        maxFeatured: 15, // matches pricing page
+        pmgFetches: 5,
+        aiExtractions: 5,
+        storage: {
+          limit: 250 * 1024 * 1024, // 250MB
+        },
+      };
+    case "pro":
+      return {
+        maxBanknotes: Infinity,
+        maxFeatured: Infinity,
+        pmgFetches: 50,
+        aiExtractions: 50,
+        storage: {
+          limit: 2 * 1024 * 1024 * 1024, // 2GB
+        },
+      };
+  }
 }
 
 export function useSubscription() {
@@ -118,30 +145,10 @@ export function useSubscription() {
     loadSubscription();
   }, [loadSubscription]);
 
-  const getTierLimits = useCallback((tier: SubscriptionTier) => {
-    switch (tier) {
-      case "free":
-        return {
-          maxBanknotes: 50,
-          maxFeatured: 15, // matches pricing page
-          pmgFetches: 5,
-          aiExtractions: 5,
-          storage: {
-            limit: 250 * 1024 * 1024, // 250MB
-          },
-        };
-      case "pro":
-        return {
-          maxBanknotes: Infinity,
-          maxFeatured: Infinity,
-          pmgFetches: 50,
-          aiExtractions: 50,
-          storage: {
-            limit: 2 * 1024 * 1024 * 1024, // 2GB
-          },
-        };
-    }
-  }, []);
+  const getTierLimits = useCallback(
+    (tier: SubscriptionTier) => tierLimits(tier),
+    []
+  );
 
   const effectiveTier = getEffectiveTier(subscription);
 

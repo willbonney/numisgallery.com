@@ -2,6 +2,29 @@ import { getCountryCode } from '../data/countries';
 import type { BanknoteFormData, Currency, PmgGrade } from '../types/banknote';
 import { CURRENCIES, GRADES, PMG_GRADES } from '../types/banknote';
 
+/**
+ * Parse a catalog number that may use US thousands (1,000.50)
+ * or European thousands / decimal comma (1.000,50 / 10,50).
+ */
+export function parseLocalizedNumber(raw: string): number {
+  const s = raw.trim().replace(/\s/g, '');
+  const match = s.match(
+    /\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?/,
+  );
+  if (!match) return NaN;
+  const token = match[0];
+  if (/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(token)) {
+    return parseFloat(token.replace(/,/g, ''));
+  }
+  if (/^\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(token)) {
+    return parseFloat(token.replace(/\./g, '').replace(',', '.'));
+  }
+  if (/^\d+,\d+$/.test(token)) {
+    return parseFloat(token.replace(',', '.'));
+  }
+  return parseFloat(token);
+}
+
 interface NumistaCSVRow {
   Country: string;
   Issuer: string;
@@ -31,66 +54,86 @@ interface NumistaCSVRow {
 }
 
 /**
- * Parse CSV file and return array of rows
+ * Parse CSV text into rows. Quoted fields may contain commas and newlines.
  */
 export function parseCSV(csvText: string): NumistaCSVRow[] {
-  const lines = csvText.split('\n').filter(line => line.trim());
-  if (lines.length < 2) return [];
+  const records = parseCSVRecords(csvText.replace(/^\uFEFF/, ''));
+  if (records.length < 2) return [];
 
-  // Parse header
-  const headers = parseCSVLine(lines[0]);
-  
-  // Parse data rows
+  const headers = records[0];
   const rows: NumistaCSVRow[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseCSVLine(lines[i]);
-    if (values.length === 0) continue;
-    
+  for (let i = 1; i < records.length; i++) {
+    const values = records[i];
+    if (values.every((value) => value === '')) continue;
+
     const row: Partial<NumistaCSVRow> = {};
     headers.forEach((header, index) => {
       row[header as keyof NumistaCSVRow] = values[index] || '';
     });
     rows.push(row as NumistaCSVRow);
   }
-  
+
   return rows;
 }
 
-/**
- * Parse a single CSV line, handling quoted fields
- */
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
+/** Split CSV text into records, keeping newlines that sit inside quotes. */
+export function parseCSVRecords(csvText: string): string[][] {
+  const records: string[][] = [];
+  let row: string[] = [];
   let current = '';
   let inQuotes = false;
-  
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    const nextChar = line[i + 1];
-    
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        // Escaped quote
-        current += '"';
-        i++; // Skip next quote
+
+  for (let i = 0; i < csvText.length; i++) {
+    const char = csvText[i];
+    const nextChar = csvText[i + 1];
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (nextChar === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
       } else {
-        // Toggle quote state
-        inQuotes = !inQuotes;
+        current += char;
       }
-    } else if (char === ',' && !inQuotes) {
-      // End of field
-      result.push(current.trim());
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = true;
+    } else if (char === ',') {
+      row.push(current.trim());
+      current = '';
+    } else if (char === '\n' || char === '\r') {
+      if (char === '\r' && nextChar === '\n') i++;
+      row.push(current.trim());
+      if (row.some((value) => value !== '')) records.push(row);
+      row = [];
       current = '';
     } else {
       current += char;
     }
   }
-  
-  // Add last field
-  result.push(current.trim());
-  
-  return result;
+
+  if (current.length > 0 || row.length > 0) {
+    row.push(current.trim());
+    if (row.some((value) => value !== '')) records.push(row);
+  }
+
+  return records;
 }
+
+const GRADE_ALIASES: Record<string, (typeof GRADES)[number]> = {
+  'ABOUT UNCIRCULATED': 'AU',
+  UNCIRCULATED: 'UNC',
+  'EXTREMELY FINE': 'XF',
+  'VERY FINE': 'VF',
+  FINE: 'F',
+  'VERY GOOD': 'VG',
+  GOOD: 'G',
+};
 
 /**
  * Convert Numista CSV row to BanknoteFormData
@@ -142,8 +185,8 @@ export function convertCSVRowToBanknote(row: NumistaCSVRow): Partial<BanknoteFor
 
     // Face Value
     if (row['Face value']) {
-      const faceValue = parseFloat(row['Face value'].replace(/[^\d.]/g, ''));
-      if (!isNaN(faceValue)) {
+      const faceValue = parseLocalizedNumber(row['Face value']);
+      if (Number.isFinite(faceValue)) {
         data.faceValue = faceValue;
       }
     } else if (row.Title) {
@@ -200,47 +243,40 @@ export function convertCSVRowToBanknote(row: NumistaCSVRow): Partial<BanknoteFor
     // Grade (map to our grade system)
     if (row.Grade) {
       const grade = row.Grade.trim().toUpperCase();
-      // Check if it's a PMG grade (numeric)
       if (PMG_GRADES.includes(grade as PmgGrade)) {
         data.grade = grade as PmgGrade;
-      } else if (GRADES.includes(grade as typeof GRADES[number])) {
-        // For non-PMG grades, we'll use 'Not Listed' as fallback since grade field is PmgGrade | Grade
-        // The user can manually change it if needed
-        data.grade = 'Not Listed';
+      } else if (GRADES.includes(grade as (typeof GRADES)[number])) {
+        data.grade = grade as (typeof GRADES)[number];
+      } else if (GRADE_ALIASES[grade]) {
+        data.grade = GRADE_ALIASES[grade];
       } else {
-        // Try to map common grades - but since grade field is PmgGrade | Grade, use Not Listed
-        // User can manually update if needed
         data.grade = 'Not Listed';
       }
     }
 
-    // Purchase Price - find any "Buying price" column and extract currency from parentheses
-    const buyingPriceKey = Object.keys(row).find(key => 
-      key.toLowerCase().startsWith('buying price')
+    // Purchase price: use the first Buying price column that actually has a value.
+    // An empty "Buying price (USD)" must not hide "Buying price (BRL)".
+    const buyingPriceKeys = Object.keys(row).filter((key) =>
+      key.toLowerCase().startsWith('buying price'),
     );
-    
-    if (buyingPriceKey) {
+
+    for (const buyingPriceKey of buyingPriceKeys) {
       const priceValue = row[buyingPriceKey];
-      if (priceValue) {
-        const price = parseFloat(priceValue.replace(/[^\d.]/g, ''));
-        if (!isNaN(price)) {
-          data.purchasePrice = price;
-          
-          // Extract currency from column name: "Buying price (BRL)" -> "BRL"
-          const currencyMatch = buyingPriceKey.match(/\(([A-Z]{3})\)/i);
-          if (currencyMatch) {
-            const currency = currencyMatch[1].toUpperCase();
-            // Validate it's a known currency code
-            if (CURRENCIES.includes(currency as Currency)) {
-              data.purchasePriceCurrency = currency as Currency;
-            } else {
-              data.purchasePriceCurrency = 'USD'; // Default fallback
-            }
-          } else {
-            data.purchasePriceCurrency = 'USD'; // Default if no currency found
-          }
-        }
+      if (!priceValue || !priceValue.trim()) continue;
+      const price = parseLocalizedNumber(priceValue);
+      if (!Number.isFinite(price)) continue;
+
+      data.purchasePrice = price;
+      const currencyMatch = buyingPriceKey.match(/\(([A-Z]{3})\)/i);
+      if (currencyMatch) {
+        const currency = currencyMatch[1].toUpperCase();
+        data.purchasePriceCurrency = CURRENCIES.includes(currency as Currency)
+          ? (currency as Currency)
+          : 'USD';
+      } else {
+        data.purchasePriceCurrency = 'USD';
       }
+      break;
     }
 
     // Acquisition Date

@@ -235,6 +235,20 @@ export const COUNTRIES = [
   { value: 'Military Payment Certificate (MPC)', code: 'us', historical: true },
 ].sort((a, b) => a.value.localeCompare(b.value));
 
+/** Names the app or catalogs use that are not exact COUNTRIES labels. */
+const COUNTRY_ALIASES: Record<string, string> = {
+  'united states of america': 'us',
+  usa: 'us',
+  'u.s.a.': 'us',
+  'u.s.': 'us',
+  myanmar: 'mm',
+  burma: 'mm',
+  czechia: 'cz',
+  'great britain': 'gb',
+  uk: 'gb',
+  'u.k.': 'gb',
+};
+
 export const getCountryCode = (country: string): string => {
   if (!country) return '';
   const normalized = country.trim();
@@ -249,6 +263,7 @@ export const getCountryCode = (country: string): string => {
     const firstPart = normalized.split(',')[0].trim();
     found = COUNTRIES.find(c => c.value.toLowerCase() === firstPart.toLowerCase());
   }
-  return found?.code || '';
+  if (found?.code) return found.code;
+  return COUNTRY_ALIASES[normalized.toLowerCase()] || '';
 };
 

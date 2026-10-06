@@ -1,6 +1,25 @@
 import type { Banknote } from '../types/banknote';
 
-export function exportCollectionToCSV(banknotes: Banknote[], userName?: string, includePurchaseInfo: boolean = false) {
+export function collectionExportFileName(userName: string | undefined, extension: 'csv' | 'pdf'): string {
+  const date = new Date().toISOString().split('T')[0];
+  if (!userName) return `banknote_collection_${date}.${extension}`;
+  const safe = userName.replace(/[^a-z0-9]/gi, '_');
+  return `${safe}_collection_${date}.${extension}`;
+}
+
+/** Quote fields that would break a row, and neutralize spreadsheet formulas. */
+export function escapeCSV(value: string): string {
+  let safe = value;
+  if (/^[=+\-@]/.test(safe)) {
+    safe = `'${safe}`;
+  }
+  if (/[",\n\r]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`;
+  }
+  return safe;
+}
+
+export function buildCollectionCsv(banknotes: Banknote[], includePurchaseInfo: boolean = false): string {
   // Define CSV headers
   const headers = [
     'Note Type',
@@ -69,28 +88,21 @@ export function exportCollectionToCSV(banknotes: Banknote[], userName?: string, 
     return row;
   });
 
-  // Escape CSV values (handle commas, quotes, newlines)
-  function escapeCSV(value: string): string {
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-      return `"${value.replace(/"/g, '""')}"`;
-    }
-    return value;
-  }
-
-  // Combine headers and rows
-  const csvContent = [
+  return [
     headers.map(escapeCSV).join(','),
     ...rows.map(row => row.map(escapeCSV).join(','))
   ].join('\n');
+}
+
+export function exportCollectionToCSV(banknotes: Banknote[], userName?: string, includePurchaseInfo: boolean = false) {
+  const csvContent = buildCollectionCsv(banknotes, includePurchaseInfo);
 
   // Create blob and download
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
   
-  const fileName = userName 
-    ? `${userName.replace(/[^a-z0-9]/gi, '_')}_collection_${new Date().toISOString().split('T')[0]}.csv`
-    : `banknote_collection_${new Date().toISOString().split('T')[0]}.csv`;
+  const fileName = collectionExportFileName(userName, 'csv');
   
   link.setAttribute('href', url);
   link.setAttribute('download', fileName);

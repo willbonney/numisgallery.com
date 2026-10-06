@@ -22,7 +22,7 @@ interface UseBanknoteFormSubmissionProps {
 }
 
 // Helper function to trim string fields
-function trimStringFields<T extends Record<string, unknown>>(obj: T, fields: (keyof T)[]): T {
+export function trimStringFields<T extends Record<string, unknown>>(obj: T, fields: (keyof T)[]): T {
   const trimmed = { ...obj };
   fields.forEach(field => {
     const value = trimmed[field];
@@ -34,19 +34,20 @@ function trimStringFields<T extends Record<string, unknown>>(obj: T, fields: (ke
 }
 
 // Validate and transform US note data
-function validateAndTransformUSNote(values: BanknoteFormData): BanknoteFormData {
+export function validateAndTransformUSNote(values: BanknoteFormData): BanknoteFormData {
   if (!values.authority || values.authority.trim() === '') {
     throw new Error('Authority is required for US notes');
   }
   return {
     ...values,
-    country: 'United States of America',
+    // Must match the country list so flags and filters line up with imports
+    country: 'United States',
     countryCode: 'us',
   };
 }
 
 // Validate and transform world note data
-function validateAndTransformWorldNote(values: BanknoteFormData): BanknoteFormData {
+export function validateAndTransformWorldNote(values: BanknoteFormData): BanknoteFormData {
   if (!values.country || values.country.trim() === '') {
     throw new Error('Country is required for world notes');
   }
@@ -56,14 +57,25 @@ function validateAndTransformWorldNote(values: BanknoteFormData): BanknoteFormDa
 }
 
 // Format storage error message
-function formatStorageError(storageCheck: { currentSize: number; limit: number }): string {
-  const currentMB = formatStorageSize(storageCheck.currentSize);
-  const limitMB = storageCheck.limit === Infinity
+export function formatStorageError(storageCheck: { currentSize: number; limit: number }): string {
+  const currentSize = formatStorageSize(storageCheck.currentSize);
+  const limit = storageCheck.limit === Infinity
     ? 'unlimited'
     : formatStorageSize(storageCheck.limit);
 
-  return `Storage limit exceeded. You're using ${currentMB}${limitMB !== 'unlimited' ? ` of ${limitMB}` : ''}. ` +
-    `Please delete some banknotes or upgrade to Pro for unlimited storage.`;
+  return `Storage limit exceeded. You're using ${currentSize} of ${limit}. ` +
+    `Delete some images or upgrade your plan for more storage.`;
+}
+
+export function signaturesForSave(signatures: BanknoteFormData['signatures']) {
+  return (signatures || []).map(({ name, title, signatureScan }) => {
+    const trimmedTitle = (title || '').trim();
+    return {
+      name: (name || '').trim(),
+      ...(trimmedTitle ? { title: trimmedTitle } : {}),
+      ...(signatureScan ? { signatureScan } : {}),
+    };
+  }).filter((s) => s.name || s.signatureScan);
 }
 
 export function useBanknoteFormSubmission({
@@ -117,14 +129,7 @@ export function useBanknoteFormSubmission({
         cleanedValues = validateAndTransformWorldNote(cleanedValues);
       }
 
-      // Strip remote-only signature URL keys before save
-      const signaturesForSave = (cleanedValues.signatures || []).map(
-        ({ name, title, signatureScan }) => ({
-          name: (name || '').trim(),
-          ...(title ? { title: title.trim() } : {}),
-          ...(signatureScan ? { signatureScan } : {}),
-        }),
-      ).filter((s) => s.name || s.signatureScan);
+      const savedSignatures = signaturesForSave(cleanedValues.signatures);
 
       // Build final values with defaults
       const finalValues: BanknoteFormData = {
@@ -146,7 +151,7 @@ export function useBanknoteFormSubmission({
         obvDesigner: cleanedValues.obvDesigner || '',
         revEngraver: cleanedValues.revEngraver || '',
         revDesigner: cleanedValues.revDesigner || '',
-        signatures: signaturesForSave,
+        signatures: savedSignatures,
       };
 
       // Check storage before upload

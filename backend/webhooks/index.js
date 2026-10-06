@@ -137,7 +137,10 @@ function isAllowedReturnUrl(url) {
 }
 
 function getAllowedPriceIds() {
-  return [STRIPE_PRICE_PRO, STRIPE_PRICE_PRO_YEARLY].filter(Boolean);
+  return [
+    process.env.STRIPE_PRICE_PRO,
+    process.env.STRIPE_PRICE_PRO_YEARLY,
+  ].filter(Boolean);
 }
 
 /**
@@ -146,20 +149,22 @@ function getAllowedPriceIds() {
  * @returns {{ priceId: string } | { error: string }}
  */
 function resolvePriceId(billingPeriod) {
+  const monthly = process.env.STRIPE_PRICE_PRO;
+  const yearly = process.env.STRIPE_PRICE_PRO_YEARLY;
   if (billingPeriod === "yearly") {
-    if (!STRIPE_PRICE_PRO_YEARLY) {
+    if (!yearly) {
       return {
         error:
           "Yearly pricing is not configured (set STRIPE_PRICE_PRO_YEARLY)",
       };
     }
-    return { priceId: STRIPE_PRICE_PRO_YEARLY };
+    return { priceId: yearly };
   }
   // default monthly
-  if (!STRIPE_PRICE_PRO) {
+  if (!monthly) {
     return { error: "STRIPE_PRICE_PRO is not configured on the server" };
   }
-  return { priceId: STRIPE_PRICE_PRO };
+  return { priceId: monthly };
 }
 
 function getCustomerId(sub) {
@@ -757,8 +762,9 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", service: "webhooks" });
 });
 
-app.listen(PORT, () => {
-  console.log(`
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`
 ╔═══════════════════════════════════════════════════╗
 ║  Mercury Webhooks Service                         ║
 ║  Running on http://localhost:${PORT}                  ║
@@ -770,4 +776,17 @@ app.listen(PORT, () => {
 ║  Security: ${STRIPE_WEBHOOK_SECRET ? "✅ Webhook signature verification enabled" : "❌ STRIPE_WEBHOOK_SECRET missing!"}
 ╚═══════════════════════════════════════════════════╝
   `);
-});
+  });
+}
+
+module.exports = {
+  app,
+  mapStripeStatus,
+  mapPriceToTier,
+  resolvePriceId,
+  isAllowedReturnUrl,
+  isValidPocketBaseId,
+  getCustomerId,
+  getSubscriptionId,
+  subscriptionWriteFields,
+};

@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import type { Banknote } from '../types/banknote';
+import { collectionExportFileName } from './csvExport';
 import { getImageUrl } from './fileHelpers';
 
 export async function exportCollectionToPDF(banknotes: Banknote[], userName?: string, includePurchaseInfo: boolean = false) {
@@ -212,10 +213,7 @@ export async function exportCollectionToPDF(banknotes: Banknote[], userName?: st
     );
   }
 
-  // Save PDF
-  const fileName = userName 
-    ? `${userName.replace(/[^a-z0-9]/gi, '_')}_collection_${new Date().toISOString().split('T')[0]}.pdf`
-    : `banknote_collection_${new Date().toISOString().split('T')[0]}.pdf`;
+  const fileName = collectionExportFileName(userName, 'pdf');
   
   doc.save(fileName);
 }

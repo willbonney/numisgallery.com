@@ -64,16 +64,18 @@ function appendFormFields(
 
     if (fileKeys.has(key)) return;
 
-    if (value !== null && value !== undefined && value !== "") {
-      if (typeof value === "object") {
-        formData.append(key, JSON.stringify(value));
-      } else if (typeof value === "boolean") {
-        formData.append(key, value ? "true" : "false");
-      } else {
-        formData.append(key, String(value));
-      }
-    } else if (typeof value === "boolean") {
+    // Empty strings and false must be sent so an edit can clear a field.
+    // Omitting them left the previous PocketBase value in place.
+    if (value === undefined) return;
+
+    if (typeof value === "boolean") {
       formData.append(key, value ? "true" : "false");
+    } else if (typeof value === "number") {
+      if (Number.isFinite(value)) formData.append(key, String(value));
+    } else if (typeof value === "string") {
+      formData.append(key, value);
+    } else if (typeof value === "object") {
+      formData.append(key, JSON.stringify(value));
     }
   });
 

@@ -20,16 +20,24 @@ function getAuthHeaders(): HeadersInit {
   return { 'Authorization': `Bearer ${token}` };
 }
 
-// Check if URL is from PocketBase (same origin or our PocketBase instance)
-function isPocketBaseUrl(url: string): boolean {
+// Only the configured PocketBase origin. A path check would send the
+// user's bearer token to any host whose URL contains /api/files/.
+export function isPocketBaseUrl(url: string): boolean {
   try {
     const urlObj = new URL(url);
     const pbUrl = import.meta.env.VITE_POCKETBASE_URL || 'http://localhost:8090';
     const pbUrlObj = new URL(pbUrl);
-    return urlObj.origin === pbUrlObj.origin || url.includes('/api/files/');
+    return urlObj.origin === pbUrlObj.origin;
   } catch {
     return false;
   }
+}
+
+/** Brightness/contrast for one RGB channel. Contrast 0 and brightness 0 is identity. */
+export function adjustRgbChannel(value: number, brightness: number, contrast: number): number {
+  const contrastFactor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+  const next = contrastFactor * (value - 128) + 128 + brightness;
+  return Math.max(0, Math.min(255, next));
 }
 
 // Convert external image URL to data URL (bypasses CORS and stores locally)
@@ -121,23 +129,11 @@ export async function applyImageAdjustments(
 
       const brightness = adjustments.brightness;
       const contrast = adjustments.contrast;
-      const contrastFactor = (259 * (contrast + 255)) / (255 * (259 - contrast));
 
       for (let i = 0; i < data.length; i += 4) {
-        // Apply contrast
-        data[i] = contrastFactor * (data[i] - 128) + 128;
-        data[i + 1] = contrastFactor * (data[i + 1] - 128) + 128;
-        data[i + 2] = contrastFactor * (data[i + 2] - 128) + 128;
-
-        // Apply brightness
-        data[i] += brightness;
-        data[i + 1] += brightness;
-        data[i + 2] += brightness;
-
-        // Clamp values
-        data[i] = Math.max(0, Math.min(255, data[i]));
-        data[i + 1] = Math.max(0, Math.min(255, data[i + 1]));
-        data[i + 2] = Math.max(0, Math.min(255, data[i + 2]));
+        data[i] = adjustRgbChannel(data[i], brightness, contrast);
+        data[i + 1] = adjustRgbChannel(data[i + 1], brightness, contrast);
+        data[i + 2] = adjustRgbChannel(data[i + 2], brightness, contrast);
       }
 
       ctx.putImageData(imageData, 0, 0);

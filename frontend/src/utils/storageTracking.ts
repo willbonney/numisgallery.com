@@ -25,13 +25,15 @@ export async function checkStorageLimit(newFileSize: number): Promise<{
       filter: `userId = "${userId}"`,
     });
 
+    const freeLimit = 250 * 1024 * 1024;
+
     if (subscriptions.length === 0) {
-      // No subscription — fail closed for free default limit display
+      // No row yet — same free cap the server hooks apply
       return {
-        allowed: false,
+        allowed: newFileSize <= freeLimit,
         currentSize: 0,
         newSize: newFileSize,
-        limit: 250 * 1024 * 1024,
+        limit: freeLimit,
       };
     }
 
