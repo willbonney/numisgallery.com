@@ -22,7 +22,7 @@ const services = {
         return false;
       }
     },
-    startCommand: "npm run dev:pocketbase",
+    startCommand: "npm run services:up",
   },
   hermes: {
     name: "Hermes",
@@ -37,7 +37,7 @@ const services = {
         return false;
       }
     },
-    startCommand: "npm run dev:hermes",
+    startCommand: "npm run services:up",
   },
   scraper: {
     name: "Scraper API",
@@ -70,7 +70,7 @@ const services = {
         });
       });
     },
-    startCommand: "npm run dev:scraper",
+    startCommand: "npm run services:up",
     optional: false, // Scraper is required for E2E tests
   },
 };
