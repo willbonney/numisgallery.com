@@ -1,5 +1,6 @@
 import { Button, Group, Paper, Stack, Text, TextInput } from "@mantine/core";
 import { IconDownload } from "@tabler/icons-react";
+import { NUMISTA_HINT } from "../waitEstimate";
 
 type NumistaImportSectionProps = {
   url: string;
@@ -34,7 +35,8 @@ export function NumistaImportSection({
             Import from Numista
           </Text>
           <Text size="xs" c="dimmed">
-            Paste a Numista banknote page URL to auto-fill catalog details.
+            Paste a Numista banknote page URL to auto-fill catalog details.{" "}
+            {NUMISTA_HINT}
           </Text>
         </div>
         <Group align="flex-end" wrap="nowrap" gap="sm">

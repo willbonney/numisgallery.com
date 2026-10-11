@@ -129,31 +129,12 @@ function stageToMessage(stage: string, progressMessage?: string): string {
     starting: "Starting request...",
     rate_limiting:
       progressMessage || "Rate limiting — waiting before next request...",
-    checking_flaresolverr: "Checking FlareSolverr status...",
-    waiting_flaresolverr: "Waiting for FlareSolverr to start...",
+    checking_flaresolverr: "Waking the lookup browser...",
+    waiting_flaresolverr: "Waking the lookup browser...",
     fetching: "Bypassing Cloudflare — fetching PMG page...",
     done: "Images found — loading...",
   };
   return map[stage] ?? (progressMessage || "Processing...");
-}
-
-/**
- * Schedule time-based loading messages for direct-mode (non-queue) requests
- * where we cannot get server-side progress updates.
- * Returns a cleanup function that cancels the timers.
- */
-function scheduleDirectModeMessages(
-  setLoading: (loading: boolean, message?: string) => void
-): () => void {
-  const stages: Array<{ delay: number; msg: string }> = [
-    { delay: 6_000, msg: "Fetching PMG certification page..." },
-    { delay: 18_000, msg: "Parsing image URLs from PMG..." },
-    { delay: 35_000, msg: "Almost done — waiting for response..." },
-  ];
-  const timers = stages.map(({ delay, msg }) =>
-    setTimeout(() => setLoading(true, msg), delay)
-  );
-  return () => timers.forEach(clearTimeout);
 }
 
 export async function fetchPMGImages(
@@ -177,10 +158,9 @@ export async function fetchPMGImages(
 
   try {
     // ── Pre-flight: check FlareSolverr + Fly.io machine state ────────────────
-    setLoading(true, "Checking services...");
+    setLoading(true, "Preparing the PMG lookup...");
 
     let flareSolverrOnline = false;
-    let flyMachineState: string | null = null;
 
     try {
       const statusRes = await fetch(`${SCRAPER_URL}/api/status`, {
@@ -190,23 +170,17 @@ export async function fetchPMGImages(
       if (statusRes.ok) {
         const status = await statusRes.json();
         flareSolverrOnline = status.flareSolverr?.status === "online";
-        flyMachineState = status.flyMachine?.state ?? null;
       }
     } catch {
       // Status check failed — proceed anyway, backend will handle startup
     }
 
-    if (!flareSolverrOnline) {
-      if (flyMachineState === "stopped") {
-        setLoading(true, "Starting FlareSolverr on Fly.io...");
-      } else if (flyMachineState === "starting") {
-        setLoading(true, "FlareSolverr machine is starting up on Fly.io...");
-      } else {
-        setLoading(true, "Waiting for FlareSolverr to start...");
-      }
-    } else {
-      setLoading(true, "Submitting request...");
-    }
+    setLoading(
+      true,
+      flareSolverrOnline
+        ? "Fetching the PMG page..."
+        : "Waking the lookup browser..."
+    );
 
     // ── Submit job ────────────────────────────────────────────────────────────
     const submitResponse = await fetch(`${SCRAPER_URL}/api/pmg-images`, {
@@ -238,7 +212,7 @@ export async function fetchPMGImages(
           autoClose: 3000,
         });
       } else {
-        setLoading(true, "Processing...");
+        setLoading(true, "Fetching the PMG page...");
       }
 
       const pollInterval = 2_000;
@@ -300,14 +274,8 @@ export async function fetchPMGImages(
 
       // ── Direct mode ───────────────────────────────────────────────────────────
     } else {
-      setLoading(true, "Bypassing Cloudflare protection...");
-      const cancelTimers = scheduleDirectModeMessages(setLoading);
-      try {
-        setLoading(true, "Loading images...");
-        await processImageResult(submitData, setObverseState, setReverseState);
-      } finally {
-        cancelTimers();
-      }
+      setLoading(true, "Loading images...");
+      await processImageResult(submitData, setObverseState, setReverseState);
     }
   } catch (error) {
     notifications.show({
@@ -397,31 +365,20 @@ export function numistaDataUrlOrNull(
   return null;
 }
 
-function numistaStageToMessage(stage: string, progressMessage?: string): string {
+function numistaStageToMessage(
+  stage: string,
+  progressMessage?: string
+): string {
   const map: Record<string, string> = {
     starting: "Starting Numista import...",
     rate_limiting:
       progressMessage || "Rate limiting — waiting before next request...",
-    checking_flaresolverr: "Checking FlareSolverr status...",
-    waiting_flaresolverr: "Waiting for FlareSolverr to start...",
+    checking_flaresolverr: "Waking the lookup browser...",
+    waiting_flaresolverr: "Waking the lookup browser...",
     fetching: "Bypassing Cloudflare — fetching Numista page...",
     done: "Details found — applying to form...",
   };
   return map[stage] ?? (progressMessage || "Processing...");
-}
-
-function scheduleNumistaDirectMessages(
-  setLoading: (loading: boolean, message?: string) => void
-): () => void {
-  const stages: Array<{ delay: number; msg: string }> = [
-    { delay: 6_000, msg: "Fetching Numista catalog page..." },
-    { delay: 18_000, msg: "Parsing banknote features..." },
-    { delay: 35_000, msg: "Almost done — waiting for response..." },
-  ];
-  const timers = stages.map(({ delay, msg }) =>
-    setTimeout(() => setLoading(true, msg), delay)
-  );
-  return () => timers.forEach(clearTimeout);
 }
 
 /**
@@ -446,10 +403,9 @@ export async function importFromNumista(
   setImporting(true);
 
   try {
-    setLoading(true, "Checking services...");
+    setLoading(true, "Preparing the Numista import...");
 
     let flareSolverrOnline = false;
-    let flyMachineState: string | null = null;
 
     try {
       const statusRes = await fetch(`${SCRAPER_URL}/api/status`, {
@@ -459,23 +415,17 @@ export async function importFromNumista(
       if (statusRes.ok) {
         const status = await statusRes.json();
         flareSolverrOnline = status.flareSolverr?.status === "online";
-        flyMachineState = status.flyMachine?.state ?? null;
       }
     } catch {
       // proceed — backend handles startup
     }
 
-    if (!flareSolverrOnline) {
-      if (flyMachineState === "stopped") {
-        setLoading(true, "Starting FlareSolverr on Fly.io...");
-      } else if (flyMachineState === "starting") {
-        setLoading(true, "FlareSolverr machine is starting up on Fly.io...");
-      } else {
-        setLoading(true, "Waiting for FlareSolverr to start...");
-      }
-    } else {
-      setLoading(true, "Submitting Numista import...");
-    }
+    setLoading(
+      true,
+      flareSolverrOnline
+        ? "Submitting Numista import..."
+        : "Waking the lookup browser..."
+    );
 
     const submitResponse = await fetch(`${SCRAPER_URL}/api/numista-import`, {
       method: "POST",
@@ -560,12 +510,7 @@ export async function importFromNumista(
         throw new Error("Import timed out. Please try again.");
       }
     } else {
-      const cancelTimers = scheduleNumistaDirectMessages(setLoading);
-      try {
-        result = submitData as NumistaImportResult;
-      } finally {
-        cancelTimers();
-      }
+      result = submitData as NumistaImportResult;
     }
 
     if (!result) {
@@ -587,7 +532,9 @@ export async function importFromNumista(
     notifications.show({
       title: "Numista Import Failed",
       message:
-        error instanceof Error ? error.message : "Could not import from Numista",
+        error instanceof Error
+          ? error.message
+          : "Could not import from Numista",
       color: "red",
     });
   } finally {

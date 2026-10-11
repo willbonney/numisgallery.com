@@ -27,6 +27,7 @@ import {
 import React, { useState } from "react";
 import type { PixelCrop } from "react-image-crop";
 import { useLoading } from "../../contexts/LoadingContext";
+import { OCR_HINT, PMG_LOOKUP_HINT } from "../waitEstimate";
 import { useSubscription } from "../../hooks/useSubscription";
 import { ALL_GRADES } from "../../types/banknote";
 import type { ImageState } from "./BanknoteForm.helpers";
@@ -399,6 +400,9 @@ export function ImagesSection({
                   </Popover>
                 </Box>
               </Group>
+              <Text size="xs" c="dimmed" ta="center" maw={360}>
+                {OCR_HINT}
+              </Text>
               {usage.aiExtractions.limit !== Infinity && (
                 <Text
                   size="xs"
@@ -443,7 +447,7 @@ export function ImagesSection({
               <Menu.Dropdown>
                 <Menu.Item onClick={() => setActiveTab("pmg")}>
                   <IconSparkles size={16} />
-                  Fetch from PMawdadawdG
+                  Fetch from PMG
                 </Menu.Item>
                 <Menu.Divider />
                 <Menu.Item
@@ -517,6 +521,9 @@ export function ImagesSection({
                     >
                       Fetch PMG Images
                     </Button>
+                    <Text size="xs" c="dimmed" mt={4}>
+                      {PMG_LOOKUP_HINT}
+                    </Text>
                     {usage.pmgFetches.limit !== Infinity && (
                       <Text
                         size="xs"
@@ -653,6 +660,9 @@ export function ImagesSection({
                 >
                   Fetch PMG Images
                 </Button>
+                <Text size="xs" c="dimmed" mt={4} ta="center">
+                  {PMG_LOOKUP_HINT}
+                </Text>
                 {usage.pmgFetches.limit !== Infinity && (
                   <Text
                     size="xs"

@@ -802,7 +802,7 @@ test.describe("Banknote Flow E2E", () => {
     console.log("[E2E] Waiting for extraction to complete...");
 
     // Wait for extraction to complete - look for loading state to finish
-    // InternVL API can take up to 90 seconds, so we need to wait longer
+    // InternVL can take about a minute, and a slow connection is allowed 150 seconds.
     try {
       await page.waitForSelector('[class*="LoadingOverlay"]', {
         state: "visible",
@@ -810,13 +810,13 @@ test.describe("Banknote Flow E2E", () => {
       });
       await page.waitForSelector('[class*="LoadingOverlay"]', {
         state: "hidden",
-        timeout: 120000,
-      }); // Increased to 120s
+        timeout: 170000,
+      });
     } catch {
       // Loading overlay selectors vary. The response listener is the signal.
     }
 
-    const extractionDeadline = Date.now() + 120000;
+    const extractionDeadline = Date.now() + 170000;
     while (!extractionCalled && Date.now() < extractionDeadline) {
       await page.waitForTimeout(250);
     }

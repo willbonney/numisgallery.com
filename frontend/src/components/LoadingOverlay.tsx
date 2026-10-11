@@ -2,20 +2,61 @@ import {
   Center,
   Loader,
   Overlay,
+  Paper,
+  Progress,
   Stack,
   Text,
   useMantineColorScheme,
 } from "@mantine/core";
+import { useEffect, useState } from "react";
 import { useLoading } from "../contexts/LoadingContext";
+import { estimateForMessage, formatElapsed, projectWait } from "./waitEstimate";
+
+type WaitClock = {
+  now: number;
+  sessionStartedAt: number;
+  phaseId: string;
+  phaseStartedAt: number;
+};
 
 export function LoadingOverlay() {
   const { isLoading, loadingMessage } = useLoading();
   const { colorScheme } = useMantineColorScheme();
+  const [clock, setClock] = useState<WaitClock | null>(null);
+
+  if (!isLoading && clock) {
+    setClock(null);
+  }
+
+  useEffect(() => {
+    if (!isLoading) return;
+    const stamp = Date.now();
+    const phaseId = estimateForMessage(loadingMessage).id;
+    const kick = window.setTimeout(() => {
+      setClock((prev) => ({
+        now: Date.now(),
+        sessionStartedAt: prev?.sessionStartedAt ?? stamp,
+        phaseId,
+        phaseStartedAt:
+          prev && prev.phaseId === phaseId ? prev.phaseStartedAt : stamp,
+      }));
+    }, 0);
+    const timer = window.setInterval(() => {
+      setClock((prev) => (prev ? { ...prev, now: Date.now() } : prev));
+    }, 1000);
+    return () => {
+      window.clearTimeout(kick);
+      window.clearInterval(timer);
+    };
+  }, [isLoading, loadingMessage]);
 
   if (!isLoading) return null;
 
+  const phaseElapsed = clock ? (clock.now - clock.phaseStartedAt) / 1000 : 0;
+  const totalElapsed = clock ? (clock.now - clock.sessionStartedAt) / 1000 : 0;
+  const wait = projectWait(loadingMessage, phaseElapsed);
   const overlayColor = colorScheme === "dark" ? "#000" : "#fff";
-  const overlayOpacity = colorScheme === "dark" ? 0.6 : 0.8;
+  const overlayOpacity = colorScheme === "dark" ? 0.82 : 0.88;
 
   return (
     <>
@@ -35,79 +76,50 @@ export function LoadingOverlay() {
           zIndex: 2001,
           pointerEvents: "none",
         }}
+        px="md"
       >
-        <Stack align="center" gap="md">
-          <Loader size="xl" />
-          <Text
-            size="lg"
-            fw={500}
-            style={{
-              animation: "pulse 2s ease-in-out infinite",
-            }}
-          >
-            {loadingMessage || "Loading..."}
-          </Text>
-          <Text size="sm" c="dimmed" ta="center" maw={400}>
-            {getExplainerText(loadingMessage)}
-          </Text>
-        </Stack>
+        <Paper
+          p="lg"
+          radius="lg"
+          shadow="xl"
+          w="100%"
+          maw={420}
+          role="status"
+          aria-live="polite"
+          style={{
+            background:
+              colorScheme === "dark"
+                ? "var(--mantine-color-dark-7)"
+                : "var(--mantine-color-white)",
+          }}
+        >
+          <Stack align="center" gap="sm">
+            <Loader size="lg" />
+            <Text size="lg" fw={600} ta="center">
+              {loadingMessage || "Working..."}
+            </Text>
+            <Text size="md" fw={500} ta="center">
+              {wait.remainingLabel}
+            </Text>
+            <Progress
+              value={wait.progressPercent}
+              color="sage"
+              size="sm"
+              radius="xl"
+              w="100%"
+              aria-label={wait.remainingLabel}
+            />
+            {totalElapsed >= 1 && (
+              <Text size="xs" c="dimmed">
+                {formatElapsed(totalElapsed)}
+              </Text>
+            )}
+            <Text size="sm" c="dimmed" ta="center">
+              {wait.detail}
+            </Text>
+          </Stack>
+        </Paper>
       </Center>
-      <style>{`
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.5;
-          }
-        }
-      `}</style>
     </>
   );
-}
-
-function getExplainerText(message: string): string {
-  if (!message) return "Please wait while we process your request...";
-  const m = message.toLowerCase();
-
-  if (m.includes("checking services") || m.includes("checking flaresolverr")) {
-    return "Verifying that FlareSolverr is online before sending your request...";
-  }
-  if (m.includes("starting flaresolverr") || m.includes("starting up on fly")) {
-    return "Waking up the FlareSolverr machine on Fly.io. This usually takes 10–20 seconds on cold start.";
-  }
-  if (
-    m.includes("waiting for flaresolverr") ||
-    m.includes("machine is starting")
-  ) {
-    return "FlareSolverr is not responding yet — retrying every 5 seconds. Please wait...";
-  }
-  if (m.includes("rate limit")) {
-    return "Pausing between requests to avoid detection by PMG's Cloudflare protection.";
-  }
-  if (m.includes("queued") || m.includes("in queue")) {
-    return "Your request is waiting in the processing queue. Each request takes 20–60 seconds.";
-  }
-  if (m.includes("bypassing cloudflare") || m.includes("fetching pmg")) {
-    return "FlareSolverr is solving the Cloudflare challenge and fetching the PMG certification page. This typically takes 15–45 seconds.";
-  }
-  if (m.includes("parsing image")) {
-    return "PMG page received — extracting the obverse and reverse image URLs...";
-  }
-  if (m.includes("images found") || m.includes("loading images")) {
-    return "Image URLs retrieved — downloading and processing your PMG images...";
-  }
-  if (m.includes("submitting") || m.includes("processing")) {
-    return "Sending your request to the scraper. Hang tight...";
-  }
-  if (m.includes("extract")) {
-    return "Using AI vision to read the PMG certification label and extract banknote details. This may take 30–90 seconds.";
-  }
-  if (m.includes("pdf")) {
-    return "Generating your collection PDF with images and details... Please standby.";
-  }
-  if (m.includes("sav")) {
-    return "Uploading images and saving banknote details...";
-  }
-  return "Please wait while we process your request...";
 }
