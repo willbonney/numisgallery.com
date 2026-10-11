@@ -2,11 +2,11 @@
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
-# Single region deployment: dfw (Dallas)
+# Single region deployment: iad (Ashburn)
 # For faster image serving, see FAST_IMAGE_SERVING.md for CDN options
 
 app = 'numisgallery-pocketbase'
-primary_region = 'dfw'
+primary_region = 'iad'
 
 [build]
 
@@ -24,6 +24,6 @@ primary_region = 'dfw'
   processes = ['app']
 
 [[vm]]
-  memory = '1024mb'
+  memory = '512mb'
   cpu_kind = 'shared'
   cpus = 1
