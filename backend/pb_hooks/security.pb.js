@@ -19,6 +19,32 @@ onRecordCreateRequest((e) => {
   if (!auth) {
     throw new ForbiddenError("Authentication required");
   }
+
+  // One subscription row per user. A second free row resets monthly quotas
+  // when usage tracking reads the newest record.
+  var existing = [];
+  try {
+    existing = e.app.findRecordsByFilter(
+      "subscriptions",
+      'userId = "' + auth.id + '"',
+      "",
+      1,
+      0,
+    );
+  } catch (lookupErr) {
+    console.log("subscription lookup on create: " + lookupErr);
+  }
+  if (existing && existing.length > 0) {
+    throw new BadRequestError("A subscription already exists for this account");
+  }
+
+  var now = new Date();
+  var periodEnd = new Date(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    now.getDate(),
+  );
+
   e.record.set("userId", auth.id);
   e.record.set("tier", "free");
   e.record.set("status", "active");
@@ -28,6 +54,8 @@ onRecordCreateRequest((e) => {
   e.record.set("totalStorageUsed", 0);
   e.record.set("stripeCustomerId", "");
   e.record.set("stripeSubscriptionId", "");
+  e.record.set("usagePeriodStart", now.toISOString().split("T")[0]);
+  e.record.set("usagePeriodEnd", periodEnd.toISOString().split("T")[0]);
   e.next();
 }, "subscriptions");
 
@@ -92,6 +120,7 @@ onRecordCreateRequest((e) => {
         storageBytes = 2 * 1024 * 1024 * 1024;
       }
       usedStorage = Number(sub.get("totalStorageUsed") || 0);
+      if (usedStorage < 0 || usedStorage !== usedStorage) usedStorage = 0;
     }
   } catch (err) {
     console.log("sub lookup on banknote create: " + err);
@@ -139,9 +168,45 @@ onRecordCreateRequest((e) => {
     }
   }
 
+  // Image byte counts come from the uploaded files. Client-supplied
+  // obverseImageSize / reverseImageSize values are ignored.
+  var obverseBytes = 0;
+  var reverseBytes = 0;
+  var signatureBytes = 0;
+  var watermarkBytes = 0;
+  try {
+    var obverseFiles = e.findUploadedFiles("obverseImage") || [];
+    for (var oi = 0; oi < obverseFiles.length; oi++) {
+      obverseBytes += Number(obverseFiles[oi] && obverseFiles[oi].size) || 0;
+    }
+    var reverseFiles = e.findUploadedFiles("reverseImage") || [];
+    for (var ri = 0; ri < reverseFiles.length; ri++) {
+      reverseBytes += Number(reverseFiles[ri] && reverseFiles[ri].size) || 0;
+    }
+    var signatureFiles = e.findUploadedFiles("signatureScans") || [];
+    for (var si = 0; si < signatureFiles.length; si++) {
+      signatureBytes +=
+        Number(signatureFiles[si] && signatureFiles[si].size) || 0;
+    }
+    var watermarkFiles = e.findUploadedFiles("waterMarkImage") || [];
+    for (var wi = 0; wi < watermarkFiles.length; wi++) {
+      watermarkBytes +=
+        Number(watermarkFiles[wi] && watermarkFiles[wi].size) || 0;
+    }
+  } catch (sizeErr) {
+    console.log("image size read on create: " + sizeErr);
+    throw new BadRequestError("Could not read uploaded image size");
+  }
+  if (obverseBytes < 0) obverseBytes = 0;
+  if (reverseBytes < 0) reverseBytes = 0;
+  if (signatureBytes < 0) signatureBytes = 0;
+  if (watermarkBytes < 0) watermarkBytes = 0;
+  e.record.set("obverseImageSize", obverseBytes);
+  e.record.set("reverseImageSize", reverseBytes);
+  e.record.set("signatureScansSize", signatureBytes);
+  e.record.set("waterMarkImageSize", watermarkBytes);
   var newBytes =
-    Number(e.record.get("obverseImageSize") || 0) +
-    Number(e.record.get("reverseImageSize") || 0);
+    obverseBytes + reverseBytes + signatureBytes + watermarkBytes;
   if (usedStorage + newBytes > storageBytes) {
     throw new BadRequestError(
       "Storage limit exceeded for your plan. Remove images or upgrade.",
@@ -197,6 +262,7 @@ onRecordUpdateRequest((e) => {
         storageBytes = 2 * 1024 * 1024 * 1024;
       }
       usedStorage = Number(sub.get("totalStorageUsed") || 0);
+      if (usedStorage < 0 || usedStorage !== usedStorage) usedStorage = 0;
     }
   } catch (err) {
     console.log("sub lookup on banknote update: " + err);
@@ -229,12 +295,85 @@ onRecordUpdateRequest((e) => {
     }
   }
 
-  var oldBytes =
-    Number(original.get("obverseImageSize") || 0) +
-    Number(original.get("reverseImageSize") || 0);
+  var obverseBytes = 0;
+  var reverseBytes = 0;
+  var signatureBytes = 0;
+  var watermarkBytes = 0;
+  var obverseUploaded = false;
+  var reverseUploaded = false;
+  var signatureUploaded = false;
+  var watermarkUploaded = false;
+  try {
+    var obverseFiles = e.findUploadedFiles("obverseImage") || [];
+    obverseUploaded = obverseFiles.length > 0;
+    for (var oi = 0; oi < obverseFiles.length; oi++) {
+      obverseBytes += Number(obverseFiles[oi] && obverseFiles[oi].size) || 0;
+    }
+    var reverseFiles = e.findUploadedFiles("reverseImage") || [];
+    reverseUploaded = reverseFiles.length > 0;
+    for (var ri = 0; ri < reverseFiles.length; ri++) {
+      reverseBytes += Number(reverseFiles[ri] && reverseFiles[ri].size) || 0;
+    }
+    var signatureFiles = e.findUploadedFiles("signatureScans") || [];
+    signatureUploaded = signatureFiles.length > 0;
+    for (var si = 0; si < signatureFiles.length; si++) {
+      signatureBytes +=
+        Number(signatureFiles[si] && signatureFiles[si].size) || 0;
+    }
+    var watermarkFiles = e.findUploadedFiles("waterMarkImage") || [];
+    watermarkUploaded = watermarkFiles.length > 0;
+    for (var wi = 0; wi < watermarkFiles.length; wi++) {
+      watermarkBytes +=
+        Number(watermarkFiles[wi] && watermarkFiles[wi].size) || 0;
+    }
+  } catch (sizeErr) {
+    console.log("image size read on update: " + sizeErr);
+    throw new BadRequestError("Could not read uploaded image size");
+  }
+
+  if (!obverseUploaded) {
+    obverseBytes = e.record.get("obverseImage")
+      ? Number(original.get("obverseImageSize") || 0)
+      : 0;
+  }
+  if (!reverseUploaded) {
+    reverseBytes = e.record.get("reverseImage")
+      ? Number(original.get("reverseImageSize") || 0)
+      : 0;
+  }
+  var previousSig = Number(original.get("signatureScansSize") || 0);
+  if (previousSig < 0) previousSig = 0;
+  if (signatureUploaded) {
+    signatureBytes = previousSig + signatureBytes;
+  } else {
+    var sigNames = e.record.get("signatureScans");
+    var sigText = sigNames ? String(sigNames) : "";
+    var hasSig = sigText !== "" && sigText !== "[]" && sigText !== "null";
+    signatureBytes = hasSig ? previousSig : 0;
+  }
+  if (!watermarkUploaded) {
+    watermarkBytes = e.record.get("waterMarkImage")
+      ? Number(original.get("waterMarkImageSize") || 0)
+      : 0;
+  }
+  if (obverseBytes < 0) obverseBytes = 0;
+  if (reverseBytes < 0) reverseBytes = 0;
+  if (signatureBytes < 0) signatureBytes = 0;
+  if (watermarkBytes < 0) watermarkBytes = 0;
+  e.record.set("obverseImageSize", obverseBytes);
+  e.record.set("reverseImageSize", reverseBytes);
+  e.record.set("signatureScansSize", signatureBytes);
+  e.record.set("waterMarkImageSize", watermarkBytes);
+
+  var oldObverse = Number(original.get("obverseImageSize") || 0);
+  var oldReverse = Number(original.get("reverseImageSize") || 0);
+  var oldWatermark = Number(original.get("waterMarkImageSize") || 0);
+  if (oldObverse < 0) oldObverse = 0;
+  if (oldReverse < 0) oldReverse = 0;
+  if (oldWatermark < 0) oldWatermark = 0;
+  var oldBytes = oldObverse + oldReverse + previousSig + oldWatermark;
   var newBytes =
-    Number(e.record.get("obverseImageSize") || 0) +
-    Number(e.record.get("reverseImageSize") || 0);
+    obverseBytes + reverseBytes + signatureBytes + watermarkBytes;
   var delta = newBytes - oldBytes;
   if (delta > 0 && usedStorage + delta > storageBytes) {
     throw new BadRequestError(
@@ -262,8 +401,14 @@ onRecordAfterCreateSuccess((e) => {
     );
     var total = 0;
     for (var i = 0; i < (notes || []).length; i++) {
-      total += Number(notes[i].get("obverseImageSize") || 0);
-      total += Number(notes[i].get("reverseImageSize") || 0);
+      var ob = Number(notes[i].get("obverseImageSize") || 0);
+      var rev = Number(notes[i].get("reverseImageSize") || 0);
+      var sig = Number(notes[i].get("signatureScansSize") || 0);
+      var wm = Number(notes[i].get("waterMarkImageSize") || 0);
+      if (ob > 0) total += ob;
+      if (rev > 0) total += rev;
+      if (sig > 0) total += sig;
+      if (wm > 0) total += wm;
     }
     var subs = e.app.findRecordsByFilter(
       "subscriptions",
@@ -294,8 +439,14 @@ onRecordAfterUpdateSuccess((e) => {
     );
     var total = 0;
     for (var i = 0; i < (notes || []).length; i++) {
-      total += Number(notes[i].get("obverseImageSize") || 0);
-      total += Number(notes[i].get("reverseImageSize") || 0);
+      var ob = Number(notes[i].get("obverseImageSize") || 0);
+      var rev = Number(notes[i].get("reverseImageSize") || 0);
+      var sig = Number(notes[i].get("signatureScansSize") || 0);
+      var wm = Number(notes[i].get("waterMarkImageSize") || 0);
+      if (ob > 0) total += ob;
+      if (rev > 0) total += rev;
+      if (sig > 0) total += sig;
+      if (wm > 0) total += wm;
     }
     var subs = e.app.findRecordsByFilter(
       "subscriptions",
@@ -326,8 +477,14 @@ onRecordAfterDeleteSuccess((e) => {
     );
     var total = 0;
     for (var i = 0; i < (notes || []).length; i++) {
-      total += Number(notes[i].get("obverseImageSize") || 0);
-      total += Number(notes[i].get("reverseImageSize") || 0);
+      var ob = Number(notes[i].get("obverseImageSize") || 0);
+      var rev = Number(notes[i].get("reverseImageSize") || 0);
+      var sig = Number(notes[i].get("signatureScansSize") || 0);
+      var wm = Number(notes[i].get("waterMarkImageSize") || 0);
+      if (ob > 0) total += ob;
+      if (rev > 0) total += rev;
+      if (sig > 0) total += sig;
+      if (wm > 0) total += wm;
     }
     var subs = e.app.findRecordsByFilter(
       "subscriptions",

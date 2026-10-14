@@ -6,6 +6,7 @@ const cors = require("cors");
 const Stripe = require("stripe");
 
 const app = express();
+app.disable("x-powered-by");
 const PORT = process.env.PORT || 3002;
 const FRONTEND_URL = process.env.FRONTEND_URL || "https://numisgallery.com";
 
@@ -120,6 +121,27 @@ function isValidPocketBaseId(id) {
   return typeof id === "string" && /^[a-z0-9]{15}$/i.test(id);
 }
 
+/** PocketBase filter values are interpolated. Only allow an id token. */
+function pbFilterEquals(field, value) {
+  if (typeof field !== "string" || !/^[A-Za-z0-9_]+$/.test(field)) return null;
+  if (typeof value !== "string" || !/^[A-Za-z0-9_-]{1,80}$/.test(value)) {
+    return null;
+  }
+  return `${field}="${value}"`;
+}
+
+/**
+ * Reuse a Stripe customer only when it is unclaimed or already belongs
+ * to this PocketBase user. Never attach a customer owned by someone else.
+ */
+function claimableCustomerId(customers, userId) {
+  const candidate = customers && customers[0];
+  if (!candidate || !candidate.id) return null;
+  const owner = candidate.metadata && candidate.metadata.userId;
+  if (owner && owner !== userId) return null;
+  return candidate.id;
+}
+
 function isAllowedReturnUrl(url) {
   if (!url) return true;
   try {
@@ -212,10 +234,12 @@ function mapPriceToTier(priceId) {
 }
 
 async function findSubscriptionByUserId(token, userId) {
+  const filter = pbFilterEquals("userId", userId);
+  if (!filter) return null;
   const response = await fetch(
     `${PB_URL}/api/collections/subscriptions/records?filter=${encodeURIComponent(
-      `userId="${userId}"`,
-    )}&perPage=1`,
+      filter,
+    )}&perPage=1&sort=id`,
     {
       headers: { Authorization: `Bearer ${token}` },
     },
@@ -231,10 +255,12 @@ async function findSubscriptionByCustomerId(token, customerId) {
 
   // Prefer stripe*; also query legacy paddle* if still present
   for (const field of ["stripeCustomerId", "paddleCustomerId"]) {
+    const filter = pbFilterEquals(field, customerId);
+    if (!filter) continue;
     const response = await fetch(
       `${PB_URL}/api/collections/subscriptions/records?filter=${encodeURIComponent(
-        `${field}="${customerId}"`,
-      )}&perPage=1`,
+        filter,
+      )}&perPage=1&sort=id`,
       {
         headers: { Authorization: `Bearer ${token}` },
       },
@@ -467,9 +493,7 @@ async function handleStripeWebhook(req, res) {
     );
   } catch (err) {
     console.error(`⚠️ Webhook signature verification failed: ${err.message}`);
-    return res
-      .status(400)
-      .json({ error: `Webhook signature verification failed: ${err.message}` });
+    return res.status(400).json({ error: "Webhook signature verification failed" });
   }
 
   const eventType = event.type;
@@ -661,11 +685,15 @@ async function handleCreateCheckoutSession(req, res) {
         email: customerEmail,
         limit: 1,
       });
-      if (existingCustomers.data.length > 0) {
-        customerId = existingCustomers.data[0].id;
-        await stripe.customers.update(customerId, {
-          metadata: { userId },
-        });
+      const reusableId = claimableCustomerId(existingCustomers.data, userId);
+      if (reusableId) {
+        customerId = reusableId;
+        const owner = existingCustomers.data[0]?.metadata?.userId;
+        if (owner !== userId) {
+          await stripe.customers.update(customerId, {
+            metadata: { userId },
+          });
+        }
       }
     }
 
@@ -786,6 +814,8 @@ module.exports = {
   resolvePriceId,
   isAllowedReturnUrl,
   isValidPocketBaseId,
+  pbFilterEquals,
+  claimableCustomerId,
   getCustomerId,
   getSubscriptionId,
   subscriptionWriteFields,

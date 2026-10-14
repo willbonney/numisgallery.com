@@ -1,7 +1,7 @@
 [
   {
     "id": "_pb_users_auth_",
-    "listRule": "@request.auth.id != \"\"",
+    "listRule": "id = @request.auth.id",
     "viewRule": "",
     "createRule": "",
     "updateRule": "@request.auth.id != \"\" && id = @request.auth.id",
@@ -115,9 +115,8 @@
         "mimeTypes": [
           "image/jpeg",
           "image/png",
-          "image/svg+xml",
-          "image/gif",
-          "image/webp"
+          "image/webp",
+          "image/gif"
         ],
         "name": "avatar",
         "presentable": false,
@@ -680,9 +679,9 @@
         "hidden": false,
         "id": "number237892729",
         "max": null,
-        "min": null,
+        "min": 0,
         "name": "obverseImageSize",
-        "onlyInt": false,
+        "onlyInt": true,
         "presentable": false,
         "required": false,
         "system": false,
@@ -692,9 +691,33 @@
         "hidden": false,
         "id": "number2051114916",
         "max": null,
-        "min": null,
+        "min": 0,
         "name": "reverseImageSize",
-        "onlyInt": false,
+        "onlyInt": true,
+        "presentable": false,
+        "required": false,
+        "system": false,
+        "type": "number"
+      },
+      {
+        "hidden": false,
+        "id": "sigsizenum01",
+        "max": null,
+        "min": 0,
+        "name": "signatureScansSize",
+        "onlyInt": true,
+        "presentable": false,
+        "required": false,
+        "system": false,
+        "type": "number"
+      },
+      {
+        "hidden": false,
+        "id": "wmsizenum01",
+        "max": null,
+        "min": 0,
+        "name": "waterMarkImageSize",
+        "onlyInt": true,
         "presentable": false,
         "required": false,
         "system": false,
@@ -1590,7 +1613,7 @@
     "listRule": "@request.auth.id != \"\" && userId = @request.auth.id",
     "viewRule": "@request.auth.id != \"\" && userId = @request.auth.id",
     "createRule": "@request.auth.id != \"\" && userId = @request.auth.id",
-    "updateRule": "@request.auth.id != \"\" && userId = @request.auth.id",
+    "updateRule": null,
     "deleteRule": null,
     "name": "subscriptions",
     "type": "base",
@@ -1759,7 +1782,9 @@
         "type": "number"
       }
     ],
-    "indexes": [],
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_subscriptions_userId` ON `subscriptions` (`userId`)"
+    ],
     "created": "2025-12-21 23:21:35.772Z",
     "updated": "2026-07-09 23:25:40.711Z",
     "system": false

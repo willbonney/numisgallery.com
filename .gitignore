@@ -140,3 +140,5 @@ backups/
 # pnpm-lock.yaml
 frontend/.env
 .env*
+!.env.example
+!frontend/.env.example

@@ -9,6 +9,8 @@ const {
   resolvePriceId,
   isAllowedReturnUrl,
   isValidPocketBaseId,
+  pbFilterEquals,
+  claimableCustomerId,
   getCustomerId,
   getSubscriptionId,
   subscriptionWriteFields,
@@ -78,6 +80,29 @@ test("return URLs stay on the site and PocketBase ids are 15 characters", () => 
   assert.equal(isValidPocketBaseId("abcdefghijklmno"), true);
   assert.equal(isValidPocketBaseId("short"), false);
   assert.equal(isValidPocketBaseId("has space here!!"), false);
+});
+
+test("stripe customers owned by someone else are not reused", () => {
+  assert.equal(
+    claimableCustomerId(
+      [{ id: "cus_other", metadata: { userId: "abcdefghijklmno" } }],
+      "zzzzzzzzzzzzzzz",
+    ),
+    null,
+  );
+  assert.equal(
+    claimableCustomerId(
+      [{ id: "cus_mine", metadata: { userId: "abcdefghijklmno" } }],
+      "abcdefghijklmno",
+    ),
+    "cus_mine",
+  );
+  assert.equal(
+    claimableCustomerId([{ id: "cus_new", metadata: {} }], "abcdefghijklmno"),
+    "cus_new",
+  );
+  assert.equal(pbFilterEquals("userId", 'abc" || true'), null);
+  assert.equal(pbFilterEquals("userId", "abcdefghijklmno"), 'userId="abcdefghijklmno"');
 });
 
 test("subscription ids prefer Stripe fields and fall back to legacy Paddle fields", () => {
